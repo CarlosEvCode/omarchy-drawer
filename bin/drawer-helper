@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+import sys
+import os
+import json
+from pathlib import Path
+
+HOME = Path.home()
+SHELL_CONFIG = HOME / ".config" / "omarchy" / "shell.json"
+DRAWER_CONFIG = HOME / ".config" / "omarchy" / "drawer.json"
+
+DEFAULT_DRAWER_ITEMS = [
+    "tiertek.tekscan",
+    "io.github.nobledoodle.omarchroma",
+    "io.github.rsd.omavnc",
+    "io.github.brukb.omarchy-zerotier",
+    "io.github.ricky.whatsapp"
+]
+
+def load_json(path, fallback):
+    if not path.exists():
+        return fallback
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return fallback
+
+def save_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(".tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    temp_path.replace(path)
+
+def get_bar_layout():
+    shell_data = load_json(SHELL_CONFIG, {})
+    return shell_data.get("bar", {}).get("layout", {})
+
+def list_bar_items():
+    layout = get_bar_layout()
+    items = []
+    seen = set()
+    for section in ["left", "center", "right"]:
+        for entry in layout.get(section, []):
+            if isinstance(entry, dict) and "id" in entry:
+                plugin_id = entry["id"]
+                if plugin_id != "evcode.drawer" and plugin_id not in seen:
+                    items.append({
+                        "id": plugin_id,
+                        "section": section,
+                        "onBar": True
+                    })
+                    seen.add(plugin_id)
+    print(json.dumps(items))
+
+def hide_from_bar(plugin_id):
+    if not plugin_id:
+        sys.exit(1)
+    # 1. Update shell.json
+    shell_data = load_json(SHELL_CONFIG, {})
+    bar = shell_data.setdefault("bar", {})
+    layout = bar.setdefault("layout", {})
+    removed = False
+    for section in ["left", "center", "right"]:
+        if section in layout and isinstance(layout[section], list):
+            new_list = []
+            for entry in layout[section]:
+                if isinstance(entry, dict) and entry.get("id") == plugin_id:
+                    removed = True
+                else:
+                    new_list.append(entry)
+            layout[section] = new_list
+    if removed:
+        save_json(SHELL_CONFIG, shell_data)
+
+    # 2. Update drawer.json
+    drawer_data = load_json(DRAWER_CONFIG, {
+        "id": "evcode.drawer",
+        "trigger": "hover",
+        "mode": "inline-drawer",
+        "dimInactive": True,
+        "items": DEFAULT_DRAWER_ITEMS[:]
+    })
+    items = drawer_data.setdefault("items", DEFAULT_DRAWER_ITEMS[:])
+    if plugin_id not in items:
+        items.append(plugin_id)
+    save_json(DRAWER_CONFIG, drawer_data)
+    print(f"Moved {plugin_id} from Bar to Drawer")
+
+def restore_to_bar(plugin_id):
+    if not plugin_id:
+        sys.exit(1)
+    # 1. Update shell.json
+    shell_data = load_json(SHELL_CONFIG, {})
+    bar = shell_data.setdefault("bar", {})
+    layout = bar.setdefault("layout", {})
+    right_list = layout.setdefault("right", [])
+    already_on_bar = any(isinstance(e, dict) and e.get("id") == plugin_id for s in ["left", "center", "right"] for e in layout.get(s, []))
+    if not already_on_bar:
+        # Insert before evcode.drawer if present, otherwise at end
+        drawer_idx = -1
+        for i, entry in enumerate(right_list):
+            if isinstance(entry, dict) and entry.get("id") == "evcode.drawer":
+                drawer_idx = i
+                break
+        if drawer_idx != -1:
+            right_list.insert(drawer_idx, {"id": plugin_id})
+        else:
+            right_list.append({"id": plugin_id})
+        save_json(SHELL_CONFIG, shell_data)
+
+    # 2. Remove from drawer.json
+    drawer_data = load_json(DRAWER_CONFIG, {})
+    if "items" in drawer_data and isinstance(drawer_data["items"], list):
+        if plugin_id in drawer_data["items"]:
+            drawer_data["items"].remove(plugin_id)
+            save_json(DRAWER_CONFIG, drawer_data)
+    print(f"Restored {plugin_id} from Drawer back to Bar")
+
+def toggle_bar_item(plugin_id):
+    layout = get_bar_layout()
+    on_bar = any(isinstance(e, dict) and e.get("id") == plugin_id for s in ["left", "center", "right"] for e in layout.get(s, []))
+    if on_bar:
+        hide_from_bar(plugin_id)
+    else:
+        restore_to_bar(plugin_id)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: drawer-helper <list-bar-items|hide-from-bar|restore-to-bar|toggle-bar-item> [plugin_id]")
+        sys.exit(1)
+    cmd = sys.argv[1]
+    if cmd == "list-bar-items":
+        list_bar_items()
+    elif cmd == "hide-from-bar" and len(sys.argv) >= 3:
+        hide_from_bar(sys.argv[2])
+    elif cmd == "restore-to-bar" and len(sys.argv) >= 3:
+        restore_to_bar(sys.argv[2])
+    elif cmd == "toggle-bar-item" and len(sys.argv) >= 3:
+        toggle_bar_item(sys.argv[2])
+    else:
+        print(f"Unknown or invalid command: {cmd}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

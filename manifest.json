@@ -7,12 +7,10 @@
   "license": "MIT",
   "description": "Collapsible hover drawer and quick-launch dock for grouping secondary bar plugins and widgets without cluttering your top bar.",
   "kinds": [
-    "bar-widget",
-    "panel"
+    "bar-widget"
   ],
   "entryPoints": {
-    "barWidget": "BarWidget.qml",
-    "panel": "Panel.qml"
+    "barWidget": "Panel.qml"
   },
   "barWidget": {
     "displayName": "Drawer",
@@ -20,34 +18,13 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "trigger": "hover",
-      "mode": "inline-drawer",
-      "animationDuration": 280,
-      "dimInactive": true,
       "items": [
-        "tiertek.tekscan",
         "io.github.nobledoodle.omarchroma",
+        "tiertek.tekscan",
         "io.github.rsd.omavnc",
         "io.github.brukb.omarchy-zerotier",
         "io.github.ricky.whatsapp"
       ]
-    },
-    "schema": [
-      {
-        "key": "trigger",
-        "type": "string",
-        "label": "Trigger mode (hover or click)"
-      },
-      {
-        "key": "mode",
-        "type": "string",
-        "label": "Display style (inline-drawer or popover-dock)"
-      },
-      {
-        "key": "dimInactive",
-        "type": "boolean",
-        "label": "Dim icons when not hovered"
-      }
-    ]
+    }
   }
 }
