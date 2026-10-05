@@ -27,11 +27,55 @@ Panel {
   property bool editingMode: false
   property string hoveredPluginName: ""
 
+  property bool barDropActive: false
+  property bool cardDropActive: false
+  property int draggingIndex: -1
+  property int dropTargetIndex: -1
+
+  // Spring-Loaded Timer (OmaSafe pattern)
+  Timer {
+    id: springTimer
+    interval: 600
+    onTriggered: {
+      if (root.barDropActive && !root.opened) {
+        root.open()
+      }
+    }
+  }
+
+  // Watchdog timer to clear stuck drop states
+  Timer {
+    id: dropWatchdogTimer
+    interval: 10000
+    onTriggered: {
+      root.barDropActive = false
+      root.cardDropActive = false
+      springTimer.stop()
+    }
+  }
+
   function reloadAllData() {
     loadDrawerConfigProc.running = false
     loadDrawerConfigProc.running = true
     listBarProc.running = false
     listBarProc.running = true
+  }
+
+  function saveReorder(newIds) {
+    if (!newIds || !Array.isArray(newIds)) return
+    root.rawDrawerItemIds = newIds
+    root.activeDrawerItems = DrawerModel.getActiveItemList(root.rawDrawerItemIds, root.discoveredMap)
+    barActionProc.command = [root.helperBin, "reorder-items", JSON.stringify(newIds)]
+    barActionProc.running = true
+  }
+
+  function reorderItem(fromIdx, toIdx) {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return
+    var list = [].concat(root.rawDrawerItemIds)
+    if (fromIdx >= list.length || toIdx >= list.length) return
+    var item = list.splice(fromIdx, 1)[0]
+    list.splice(toIdx, 0, item)
+    saveReorder(list)
   }
 
   function launchPlugin(targetId) {
@@ -229,19 +273,43 @@ Panel {
       root.addingMode = false
       root.editingMode = false
       root.hoveredPluginName = ""
+      root.draggingIndex = -1
+      root.dropTargetIndex = -1
+    } else {
+      root.barDropActive = false
+      root.cardDropActive = false
+      springTimer.stop()
     }
   }
 
-  // Bar Widget Icon Button
+  // Bar Widget Icon Button with Spring-Loaded DropArea
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "\uf187"
-    active: root.opened
-    tooltipText: root.opened ? "Close Drawer" : "Drawer (" + root.activeDrawerItems.length + " items)"
+    text: root.barDropActive ? "\uf0120" : "\uf187"
+    active: root.opened || root.barDropActive
+    tooltipText: root.opened ? "Close Drawer" : (root.barDropActive ? "Drop here to open" : "Drawer (" + root.activeDrawerItems.length + " items)")
     onPressed: function(buttonCode) {
       root.toggle()
+    }
+
+    DropArea {
+      anchors.fill: parent
+      onEntered: function(drag) {
+        root.barDropActive = true
+        springTimer.restart()
+        dropWatchdogTimer.restart()
+      }
+      onExited: {
+        root.barDropActive = false
+        springTimer.stop()
+      }
+      onDropped: function(drop) {
+        root.barDropActive = false
+        springTimer.stop()
+        root.open()
+      }
     }
   }
 
@@ -255,6 +323,20 @@ Panel {
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(root.addingMode ? Style.space(340) : Math.max(Style.space(260), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)))
     contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(480))
+
+    DropArea {
+      anchors.fill: parent
+      onEntered: function(drag) {
+        root.cardDropActive = true
+        dropWatchdogTimer.restart()
+      }
+      onExited: {
+        root.cardDropActive = false
+      }
+      onDropped: function(drop) {
+        root.cardDropActive = false
+      }
+    }
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -289,14 +371,14 @@ Panel {
 
           Text {
             visible: !root.addingMode
-            text: "\uf187"
+            text: root.cardDropActive ? "\uf0120" : "\uf187"
             color: Color.accent
             font.family: Style.font.family
             font.pixelSize: Style.font.title
           }
 
           Text {
-            text: root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer"))
+            text: root.cardDropActive ? "Drop here" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit (Drag to reorder)" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")))
             color: Color.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.title
@@ -342,7 +424,7 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // ── MAIN VIEW: UNIFIED DRAWER ICONS ──────────────────────────────────
+        // ── MAIN VIEW: UNIFIED DRAWER ICONS WITH DRAG-REORDER ────────────────
         ColumnLayout {
           Layout.fillWidth: true
           visible: !root.addingMode
@@ -384,30 +466,41 @@ Panel {
 
           // Icon Grid
           Flow {
+            id: itemsGrid
             visible: root.activeDrawerItems.length > 0
             Layout.fillWidth: true
             spacing: Style.space(10)
             clip: false
 
             Repeater {
+              id: itemsRepeater
               model: root.activeDrawerItems
 
               delegate: Item {
+                id: itemDelegate
                 required property var modelData
                 required property int index
 
+                readonly property bool isDragging: root.draggingIndex === index
+                readonly property bool isDropTarget: root.dropTargetIndex === index && root.draggingIndex !== index
+
                 width: Style.space(48)
                 height: Style.space(48)
-                z: tileHover.containsMouse ? 100 : 1
+                z: isDragging ? 1000 : (tileHover.containsMouse ? 100 : 1)
 
                 BorderSurface {
                   anchors.fill: parent
                   radius: Style.cornerRadius
-                  color: tileHover.containsMouse ? Color.subtextBackground : "transparent"
+                  color: isDragging ? Qt.alpha(Color.accent, 0.25) : (tileHover.containsMouse ? Color.subtextBackground : "transparent")
                   borderSpec: root.editingMode
                     ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
-                    : (tileHover.containsMouse ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                    : (isDropTarget || tileHover.containsMouse ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
+                  scale: isDragging ? 1.15 : (isDropTarget ? 1.08 : 1.0)
+
+                  Behavior on scale {
+                    NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                  }
                   Behavior on color {
                     ColorAnimation { duration: 120 }
                   }
@@ -415,10 +508,10 @@ Panel {
                   Text {
                     anchors.centerIn: parent
                     text: modelData.icon || "\uf013"
-                    color: tileHover.containsMouse ? Color.accent : Color.foreground
+                    color: (isDragging || tileHover.containsMouse || isDropTarget) ? Color.accent : Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.displayMedium
-                    scale: tileHover.containsMouse ? 1.15 : 1.0
+                    scale: (tileHover.containsMouse || isDragging) ? 1.15 : 1.0
 
                     Behavior on scale {
                       NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -431,7 +524,7 @@ Panel {
 
                 // Edit Mode "X" Badge in Top-Right Corner
                 BorderSurface {
-                  visible: root.editingMode
+                  visible: root.editingMode && !isDragging
                   anchors.top: parent.top
                   anchors.right: parent.right
                   anchors.topMargin: -Style.space(4)
@@ -455,8 +548,8 @@ Panel {
                 // Floating Name Pill
                 BorderSurface {
                   id: floatingPill
-                  visible: !root.editingMode && tileHover.containsMouse
-                  opacity: (!root.editingMode && tileHover.containsMouse) ? 1.0 : 0.0
+                  visible: !root.editingMode && !isDragging && tileHover.containsMouse
+                  opacity: (!root.editingMode && !isDragging && tileHover.containsMouse) ? 1.0 : 0.0
                   anchors.horizontalCenter: parent.horizontalCenter
                   y: -implicitHeight - Style.space(6)
                   z: 200
@@ -485,10 +578,59 @@ Panel {
                   id: tileHover
                   anchors.fill: parent
                   hoverEnabled: true
-                  cursorShape: Qt.PointingHandCursor
+                  cursorShape: root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor
+
+                  property real pressX: 0
+                  property real pressY: 0
+                  property bool hasMoved: false
+
+                  onPressed: function(mouse) {
+                    pressX = mouse.x
+                    pressY = mouse.y
+                    hasMoved = false
+                  }
+
+                  onPositionChanged: function(mouse) {
+                    if (mouse.buttons & Qt.LeftButton) {
+                      var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
+                      if (dist > 8) {
+                        hasMoved = true
+                        root.draggingIndex = index
+
+                        // Find target item under mouse
+                        var globalPos = mapToItem(itemsGrid, mouse.x, mouse.y)
+                        var child = itemsGrid.childAt(globalPos.x, globalPos.y)
+                        if (child && child !== itemDelegate) {
+                          for (var k = 0; k < itemsRepeater.count; k++) {
+                            if (itemsRepeater.itemAt(k) === child) {
+                              root.dropTargetIndex = k
+                              break
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+
+                  onReleased: function(mouse) {
+                    if (hasMoved && root.draggingIndex >= 0 && root.dropTargetIndex >= 0) {
+                      root.reorderItem(root.draggingIndex, root.dropTargetIndex)
+                    }
+                    root.draggingIndex = -1
+                    root.dropTargetIndex = -1
+                    hasMoved = false
+                  }
+
+                  onCanceled: {
+                    root.draggingIndex = -1
+                    root.dropTargetIndex = -1
+                    hasMoved = false
+                  }
 
                   onEntered: {
-                    root.hoveredPluginName = modelData.name || modelData.id
+                    if (root.draggingIndex < 0) {
+                      root.hoveredPluginName = modelData.name || modelData.id
+                    }
                   }
 
                   onExited: {
@@ -498,6 +640,7 @@ Panel {
                   }
 
                   onClicked: {
+                    if (hasMoved) return
                     if (root.editingMode) {
                       root.restoreToBar(modelData.id)
                     } else {

@@ -122,9 +122,23 @@ def restore_to_bar(plugin_id):
             save_json(DRAWER_CONFIG, drawer_data)
     print(f"Restored {plugin_id} from Drawer back to Bar")
 
+def reorder_items(new_items_json):
+    if not new_items_json:
+        return
+    try:
+        new_items = json.loads(new_items_json) if isinstance(new_items_json, str) else new_items_json
+        if not isinstance(new_items, list):
+            return
+        drawer_data = load_json(DRAWER_CONFIG, {"id": "evcode.drawer", "items": []})
+        drawer_data["items"] = new_items
+        save_json(DRAWER_CONFIG, drawer_data)
+        print("Reordered drawer items successfully")
+    except Exception as e:
+        print(f"Error reordering items: {e}", file=sys.stderr)
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: drawer-helper <list-bar-items|list-drawer-items|hide-from-bar|restore-to-bar> [plugin_id]")
+        print("Usage: drawer-helper <list-bar-items|list-drawer-items|hide-from-bar|restore-to-bar|reorder-items> [args...]")
         sys.exit(1)
     cmd = sys.argv[1]
     if cmd == "list-bar-items":
@@ -135,9 +149,12 @@ def main():
         hide_from_bar(sys.argv[2])
     elif cmd == "restore-to-bar" and len(sys.argv) >= 3:
         restore_to_bar(sys.argv[2])
+    elif cmd == "reorder-items" and len(sys.argv) >= 3:
+        reorder_items(sys.argv[2])
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
 
 if __name__ == "__main__":
     main()
+
