@@ -23,11 +23,6 @@ Panel {
   property var discoveredMap: ({})
   property var activeDrawerItems: DrawerModel.getActiveItemList(rawDrawerItemIds, discoveredMap)
   property var barWidgetsList: []
-  property bool manageMode: false
-
-  function isItemInDrawer(id) {
-    return rawDrawerItemIds.indexOf(id) !== -1
-  }
 
   function reloadAllData() {
     loadDrawerConfigProc.running = false
@@ -57,7 +52,6 @@ Panel {
     barActionProc.running = true
   }
 
-  // CLI / Subprocess actions
   Process {
     id: triggerProc
     running: false
@@ -106,7 +100,7 @@ Panel {
     }
   }
 
-  // Scan installed plugin manifests
+  // Scan manifests for proper names and icons
   Process {
     id: scanManifestsProc
     running: true
@@ -154,14 +148,11 @@ Panel {
     function list(): string { return JSON.stringify(root.rawDrawerItemIds) }
     function add(pluginId: string): void { root.hideFromBar(pluginId) }
     function remove(pluginId: string): void { root.restoreToBar(pluginId) }
-    function manage(): void { root.open(); root.manageMode = true }
   }
 
   onOpenedChanged: {
     if (opened) {
       root.reloadAllData()
-    } else {
-      root.manageMode = false
     }
   }
 
@@ -174,12 +165,7 @@ Panel {
     active: root.opened
     tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " ocultos)"
     onPressed: function(buttonCode) {
-      if (buttonCode === Qt.RightButton) {
-        root.open()
-        root.manageMode = true
-      } else {
-        root.toggle()
-      }
+      root.toggle()
     }
   }
 
@@ -191,8 +177,8 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(root.manageMode ? Style.space(380) : Math.max(Style.space(220), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)))
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(520))
+    contentWidth: panel.fittedContentWidth(Style.space(360))
+    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(500))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -202,9 +188,9 @@ Panel {
       ColumnLayout {
         id: mainColumn
         anchors.fill: parent
-        spacing: Style.space(8)
+        spacing: Style.space(12)
 
-        // Header Bar
+        // Header
         RowLayout {
           Layout.fillWidth: true
           spacing: Style.space(8)
@@ -217,7 +203,7 @@ Panel {
           }
 
           Text {
-            text: root.manageMode ? "Gestionar Barra" : "Drawer"
+            text: "Omarchy Drawer"
             color: Color.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.title
@@ -225,12 +211,10 @@ Panel {
             Layout.fillWidth: true
           }
 
-          // Manage Toggle Button (Gear)
           Button {
-            iconText: root.manageMode ? "\uf00a" : "\uf013"
-            tooltipText: root.manageMode ? "Ver Cuadrícula de Iconos" : "Ocultar / Mostrar Widgets de la Barra"
-            selected: root.manageMode
-            onClicked: root.manageMode = !root.manageMode
+            iconText: "\uf021"
+            tooltipText: "Actualizar"
+            onClicked: root.reloadAllData()
           }
 
           Button {
@@ -244,113 +228,113 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // VIEW 1: CLEAN ICON GRID (NO NAMES, NO NUMBERS)
+        // SECCIÓN 1: EN DRAWER (OCULTOS)
         ColumnLayout {
           Layout.fillWidth: true
-          visible: !root.manageMode
-          spacing: Style.space(8)
+          spacing: Style.space(6)
 
-          // Empty state if no plugins are hidden
-          BorderSurface {
-            visible: root.activeDrawerItems.length === 0
+          RowLayout {
             Layout.fillWidth: true
-            implicitHeight: Style.space(80)
-            radius: Style.cornerRadius
-            color: Style.spaceFill
+            spacing: Style.space(6)
 
-            ColumnLayout {
-              anchors.centerIn: parent
-              spacing: Style.space(4)
+            Text {
+              text: "En Drawer (" + root.activeDrawerItems.length + ")"
+              color: Color.accent
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              Layout.fillWidth: true
+            }
 
-              Text {
-                text: "No hay plugins en el Drawer"
-                color: Color.foreground
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-                font.bold: true
-                Layout.alignment: Qt.AlignHCenter
-              }
-
-              Button {
-                text: "Ocultar widgets de la barra"
-                iconText: "\uf013"
-                Layout.alignment: Qt.AlignHCenter
-                onClicked: root.manageMode = true
-              }
+            Text {
+              text: "Clic para devolver a la barra"
+              color: Color.subtext
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
             }
           }
 
-          // The Grid of Icon Tiles
-          Item {
+          // Empty state when no items are hidden
+          BorderSurface {
+            visible: root.activeDrawerItems.length === 0
+            Layout.fillWidth: true
+            implicitHeight: Style.space(48)
+            radius: Style.cornerRadius
+            color: Style.spaceFill
+
+            Text {
+              anchors.centerIn: parent
+              text: "Ningún plugin oculto. Haz clic abajo para mover aquí."
+              color: Color.subtext
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+            }
+          }
+
+          // Grid of Drawer Icons
+          Flow {
             visible: root.activeDrawerItems.length > 0
-            Layout.alignment: Qt.AlignHCenter
-            implicitWidth: iconGrid.implicitWidth
-            implicitHeight: iconGrid.implicitHeight
+            Layout.fillWidth: true
+            spacing: Style.space(6)
 
-            Grid {
-              id: iconGrid
-              columns: Math.min(5, Math.max(3, root.activeDrawerItems.length))
-              spacing: Style.space(8)
+            Repeater {
+              model: root.activeDrawerItems
 
-              Repeater {
-                model: root.activeDrawerItems
+              delegate: BorderSurface {
+                required property var modelData
+                required property int index
 
-                delegate: BorderSurface {
-                  required property var modelData
-                  required property int index
+                width: Style.space(46)
+                height: Style.space(46)
+                radius: Style.cornerRadius
+                color: drawerHover.containsMouse ? Color.subtextBackground : Style.spaceFill
 
-                  width: Style.space(52)
-                  height: Style.space(52)
-                  radius: Style.cornerRadius
-                  color: tileHover.containsMouse ? Style.spaceFill : Color.subtextBackground
+                borderSpec: drawerHover.containsMouse
+                  ? Border.controlSpec("hover", Color.accent, Color.accent)
+                  : Border.controlSpec("normal", Color.foreground, Color.accent)
 
-                  borderSpec: tileHover.containsMouse
-                    ? Border.controlSpec("hover", Color.accent, Color.accent)
-                    : Border.controlSpec("normal", Color.foreground, Color.accent)
+                Behavior on color {
+                  ColorAnimation { duration: 120 }
+                }
 
-                  Behavior on color {
-                    ColorAnimation { duration: 140 }
+                Text {
+                  anchors.centerIn: parent
+                  text: modelData.icon || "\uf013"
+                  color: Color.accent
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.displayMedium
+                  scale: drawerHover.containsMouse ? 1.15 : 1.0
+
+                  Behavior on scale {
+                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                  }
+                }
+
+                MouseArea {
+                  id: drawerHover
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                  onEntered: {
+                    if (root.bar) {
+                      root.bar.showTooltip(drawerHover, (modelData.name || modelData.id) + " — Clic: mover a barra | Clic der: abrir")
+                    }
                   }
 
-                  Text {
-                    anchors.centerIn: parent
-                    text: modelData.icon || "\uf013"
-                    color: tileHover.containsMouse ? Color.accent : Color.foreground
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.displayMedium
-                    scale: tileHover.containsMouse ? 1.12 : 1.0
-
-                    Behavior on scale {
-                      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+                  onExited: {
+                    if (root.bar) {
+                      root.bar.hideTooltip(drawerHover)
                     }
                   }
 
-                  MouseArea {
-                    id: tileHover
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                    onEntered: {
-                      if (root.bar) {
-                        root.bar.showTooltip(tileHover, modelData.name || modelData.id)
-                      }
-                    }
-
-                    onExited: {
-                      if (root.bar) {
-                        root.bar.hideTooltip(tileHover)
-                      }
-                    }
-
-                    onClicked: function(mouse) {
-                      if (root.bar) root.bar.hideTooltip(tileHover)
-                      if (mouse.button === Qt.RightButton) {
-                        root.restoreToBar(modelData.id)
-                      } else {
-                        root.launchPlugin(modelData.id)
-                      }
+                  onClicked: function(mouse) {
+                    if (root.bar) root.bar.hideTooltip(drawerHover)
+                    if (mouse.button === Qt.RightButton) {
+                      root.launchPlugin(modelData.id)
+                    } else {
+                      root.restoreToBar(modelData.id)
                     }
                   }
                 }
@@ -359,124 +343,96 @@ Panel {
           }
         }
 
-        // VIEW 2: MANAGE VIEW (HIDE / RESTORE PLUGINS)
+        PanelSeparator {
+          Layout.fillWidth: true
+        }
+
+        // SECCIÓN 2: EN BARRA (ACTIVOS EN LA BARRA SUPERIOR)
         ColumnLayout {
           Layout.fillWidth: true
-          visible: root.manageMode
           spacing: Style.space(6)
 
-          Text {
-            text: "Oculta iconos de tu barra para que aparezcan en la cuadrícula del Drawer:"
-            color: Color.subtext
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            wrapMode: Text.WordWrap
+          RowLayout {
             Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Text {
+              text: "En Barra (" + root.barWidgetsList.length + ")"
+              color: Color.foreground
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              Layout.fillWidth: true
+            }
+
+            Text {
+              text: "Clic para ocultar y mover al Drawer"
+              color: Color.subtext
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+            }
           }
 
-          Flickable {
+          Flow {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(Style.space(320), barListCol.implicitHeight)
-            contentHeight: barListCol.implicitHeight
-            clip: true
+            spacing: Style.space(6)
 
-            ColumnLayout {
-              id: barListCol
-              width: parent.width
-              spacing: Style.space(4)
+            Repeater {
+              model: root.barWidgetsList
 
-              // Plugins currently on the bar
-              Repeater {
-                model: root.barWidgetsList
+              delegate: BorderSurface {
+                required property var modelData
+                required property int index
 
-                delegate: BorderSurface {
-                  required property var modelData
-                  required property int index
+                readonly property var meta: (root.discoveredMap && root.discoveredMap[modelData.id]) ? root.discoveredMap[modelData.id] : DrawerModel.resolveItemMetadata(modelData.id, null)
 
-                  readonly property var meta: (root.discoveredMap && root.discoveredMap[modelData.id]) ? root.discoveredMap[modelData.id] : DrawerModel.resolveItemMetadata(modelData.id, null)
+                width: Style.space(46)
+                height: Style.space(46)
+                radius: Style.cornerRadius
+                color: barItemHover.containsMouse ? Style.spaceFill : "transparent"
 
-                  Layout.fillWidth: true
-                  implicitHeight: Style.space(40)
-                  radius: Style.cornerRadius
-                  color: "transparent"
+                borderSpec: barItemHover.containsMouse
+                  ? Border.controlSpec("hover", Color.accent, Color.accent)
+                  : Border.controlSpec("normal", Color.foreground, Color.accent)
 
-                  RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: Style.space(8)
-                    anchors.rightMargin: Style.space(8)
-                    spacing: Style.space(8)
+                Behavior on color {
+                  ColorAnimation { duration: 120 }
+                }
 
-                    Text {
-                      text: meta.icon || "\uf013"
-                      color: Color.foreground
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.icon
-                      Layout.preferredWidth: Style.space(24)
-                    }
+                Text {
+                  anchors.centerIn: parent
+                  text: meta.icon || "\uf013"
+                  color: barItemHover.containsMouse ? Color.accent : Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.icon
+                  scale: barItemHover.containsMouse ? 1.15 : 1.0
 
-                    Text {
-                      text: meta.name || modelData.id
-                      color: Color.foreground
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.body
-                      font.bold: true
-                      elide: Text.ElideRight
-                      Layout.fillWidth: true
-                    }
-
-                    Button {
-                      text: "Ocultar"
-                      iconText: "\uf070"
-                      tooltipText: "Ocultar de la barra y pasar a la cuadrícula del Drawer"
-                      onClicked: root.hideFromBar(modelData.id)
-                    }
+                  Behavior on scale {
+                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                   }
                 }
-              }
 
-              // Plugins in Drawer (to restore)
-              Repeater {
-                model: root.activeDrawerItems
+                MouseArea {
+                  id: barItemHover
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
 
-                delegate: BorderSurface {
-                  required property var modelData
-                  required property int index
-
-                  Layout.fillWidth: true
-                  implicitHeight: Style.space(40)
-                  radius: Style.cornerRadius
-                  color: Style.spaceFill
-
-                  RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: Style.space(8)
-                    anchors.rightMargin: Style.space(8)
-                    spacing: Style.space(8)
-
-                    Text {
-                      text: modelData.icon || "\uf013"
-                      color: Color.accent
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.icon
-                      Layout.preferredWidth: Style.space(24)
+                  onEntered: {
+                    if (root.bar) {
+                      root.bar.showTooltip(barItemHover, (meta.name || modelData.id) + " — Clic para ocultar en Drawer")
                     }
+                  }
 
-                    Text {
-                      text: modelData.name || modelData.id
-                      color: Color.foreground
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.body
-                      font.bold: true
-                      elide: Text.ElideRight
-                      Layout.fillWidth: true
+                  onExited: {
+                    if (root.bar) {
+                      root.bar.hideTooltip(barItemHover)
                     }
+                  }
 
-                    Button {
-                      text: "Mostrar"
-                      iconText: "\uf06e"
-                      tooltipText: "Restaurar a la barra fija"
-                      onClicked: root.restoreToBar(modelData.id)
-                    }
+                  onClicked: {
+                    if (root.bar) root.bar.hideTooltip(barItemHover)
+                    root.hideFromBar(modelData.id)
                   }
                 }
               }
