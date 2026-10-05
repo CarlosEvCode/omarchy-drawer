@@ -385,16 +385,18 @@ Panel {
     }
   }
 
-  // Floating Popup Panel Surface
-  KeyboardPanel {
-    id: panel
+  // Floating Popup Shelf Surface with layer-shell popout coordination
+  Shelf {
+    id: shelf
+    host: root.host
     anchorItem: button
-    owner: root
-    bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(root.addingMode ? Style.space(340) : Math.max(Style.space(260), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)))
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(480))
+    suspendDismiss: root.childPopoutOpen
+    contentWidth: root.addingMode ? Style.space(340) : Math.max(Style.space(260), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32))
+    contentHeight: mainColumn.implicitHeight
+    onDismissed: {
+      if (!root.childPopoutOpen) root.close()
+    }
 
     DropArea {
       anchors.fill: parent
@@ -410,433 +412,420 @@ Panel {
       }
     }
 
-    PanelKeyCatcher {
-      id: keyCatcher
+    ColumnLayout {
+      id: mainColumn
       anchors.fill: parent
-      onCloseRequested: {
-        if (root.addingMode) {
-          root.addingMode = false
-        } else if (root.editingMode) {
-          root.editingMode = false
-        } else {
-          root.close()
+      spacing: Style.space(12)
+
+      // HEADER
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: Style.space(8)
+
+        // Back button if in adding mode
+        Button {
+          visible: root.addingMode
+          iconText: "\uf060"
+          tooltipText: "Back to Drawer"
+          onClicked: root.addingMode = false
+        }
+
+        Text {
+          visible: !root.addingMode
+          text: root.cardDropActive ? "\uf0120" : "\uf187"
+          color: Color.accent
+          font.family: Style.font.family
+          font.pixelSize: Style.font.title
+        }
+
+        Text {
+          text: root.cardDropActive ? "Drop here" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit (Drag to reorder)" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")))
+          color: Color.foreground
+          font.family: Style.font.family
+          font.pixelSize: Style.font.title
+          font.bold: true
+          elide: Text.ElideRight
+          Layout.fillWidth: true
+
+          Behavior on color {
+            ColorAnimation { duration: 120 }
+          }
+        }
+
+        // Edit Mode Toggle Button
+        Button {
+          visible: !root.addingMode && root.activeDrawerItems.length > 0
+          iconText: root.editingMode ? "\uf00c" : "\uf044"
+          tooltipText: root.editingMode ? "Done" : "Edit"
+          selected: root.editingMode
+          onClicked: root.editingMode = !root.editingMode
+        }
+
+        // + Button to add plugins from bar
+        Button {
+          visible: !root.addingMode
+          iconText: "\uf067"
+          tooltipText: "Add from bar"
+          selected: root.addingMode
+          onClicked: {
+            root.reloadAllData()
+            root.editingMode = false
+            root.addingMode = true
+          }
+        }
+
+        Button {
+          iconText: "\uf00d"
+          tooltipText: "Close (Esc)"
+          onClicked: root.close()
         }
       }
 
+      PanelSeparator {
+        Layout.fillWidth: true
+      }
+
+      // ── MAIN VIEW: UNIFIED DRAWER ICONS WITH NATIVE WIDGET HOSTING & DRAG-REORDER ──
       ColumnLayout {
-        id: mainColumn
-        anchors.fill: parent
-        spacing: Style.space(12)
+        Layout.fillWidth: true
+        visible: !root.addingMode
+        spacing: Style.space(10)
+        clip: false
 
-        // HEADER
-        RowLayout {
+        // Empty state when drawer is empty
+        BorderSurface {
+          visible: root.activeDrawerItems.length === 0
           Layout.fillWidth: true
-          spacing: Style.space(8)
+          implicitHeight: Style.space(70)
+          radius: Style.cornerRadius
+          color: "transparent"
 
-          // Back button if in adding mode
-          Button {
-            visible: root.addingMode
-            iconText: "\uf060"
-            tooltipText: "Back to Drawer"
-            onClicked: root.addingMode = false
-          }
+          ColumnLayout {
+            anchors.centerIn: parent
+            spacing: Style.space(4)
 
-          Text {
-            visible: !root.addingMode
-            text: root.cardDropActive ? "\uf0120" : "\uf187"
-            color: Color.accent
-            font.family: Style.font.family
-            font.pixelSize: Style.font.title
-          }
-
-          Text {
-            text: root.cardDropActive ? "Drop here" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit (Drag to reorder)" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")))
-            color: Color.foreground
-            font.family: Style.font.family
-            font.pixelSize: Style.font.title
-            font.bold: true
-            elide: Text.ElideRight
-            Layout.fillWidth: true
-
-            Behavior on color {
-              ColorAnimation { duration: 120 }
+            Text {
+              text: "Empty Drawer"
+              color: Color.foreground
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              Layout.alignment: Qt.AlignHCenter
             }
-          }
 
-          // Edit Mode Toggle Button
-          Button {
-            visible: !root.addingMode && root.activeDrawerItems.length > 0
-            iconText: root.editingMode ? "\uf00c" : "\uf044"
-            tooltipText: root.editingMode ? "Done" : "Edit"
-            selected: root.editingMode
-            onClicked: root.editingMode = !root.editingMode
-          }
-
-          // + Button to add plugins from bar
-          Button {
-            visible: !root.addingMode
-            iconText: "\uf067"
-            tooltipText: "Add from bar"
-            selected: root.addingMode
-            onClicked: {
-              root.reloadAllData()
-              root.editingMode = false
-              root.addingMode = true
+            Button {
+              text: "Add from bar"
+              iconText: "\uf067"
+              Layout.alignment: Qt.AlignHCenter
+              onClicked: {
+                root.reloadAllData()
+                root.addingMode = true
+              }
             }
-          }
-
-          Button {
-            iconText: "\uf00d"
-            tooltipText: "Close (Esc)"
-            onClicked: root.close()
           }
         }
 
-        PanelSeparator {
+        // Icon Grid
+        Flow {
+          id: itemsGrid
+          visible: root.activeDrawerItems.length > 0
           Layout.fillWidth: true
-        }
-
-        // ── MAIN VIEW: UNIFIED DRAWER ICONS WITH DRAG-REORDER ────────────────
-        ColumnLayout {
-          Layout.fillWidth: true
-          visible: !root.addingMode
           spacing: Style.space(10)
           clip: false
 
-          // Empty state when drawer is empty
-          BorderSurface {
-            visible: root.activeDrawerItems.length === 0
-            Layout.fillWidth: true
-            implicitHeight: Style.space(70)
-            radius: Style.cornerRadius
-            color: "transparent"
+          Repeater {
+            id: itemsRepeater
+            model: root.activeDrawerItems
 
-            ColumnLayout {
-              anchors.centerIn: parent
-              spacing: Style.space(4)
+            delegate: Item {
+              id: itemDelegate
+              required property var modelData
+              required property int index
 
-              Text {
-                text: "Empty Drawer"
-                color: Color.foreground
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-                font.bold: true
-                Layout.alignment: Qt.AlignHCenter
+              readonly property string childId: String(modelData.id || modelData)
+              readonly property var registryEntry: {
+                var registry = root.host ? root.host.barWidgetRegistry : null
+                var widgets = registry ? registry.widgets : null
+                return widgets && widgets[childId] ? widgets[childId] : null
               }
+              readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
-              Button {
-                text: "Add from bar"
-                iconText: "\uf067"
-                Layout.alignment: Qt.AlignHCenter
-                onClicked: {
-                  root.reloadAllData()
-                  root.addingMode = true
+              readonly property bool isDragging: root.draggingIndex === index
+              readonly property bool isDropTarget: root.dropTargetIndex === index && root.draggingIndex !== index
+
+              readonly property Item activeItem: nativeWidgetLoader.item
+
+              width: Style.space(48)
+              height: Style.space(48)
+              z: isDragging ? 1000 : (tileHover.hovered ? 100 : 1)
+
+              Component.onCompleted: root.registerChild(itemDelegate)
+              Component.onDestruction: root.unregisterChild(itemDelegate)
+
+              BorderSurface {
+                anchors.fill: parent
+                radius: Style.cornerRadius
+                color: isDragging ? Qt.alpha(Color.accent, 0.25) : (tileHover.hovered ? Color.subtextBackground : "transparent")
+                borderSpec: root.editingMode
+                  ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
+                  : (isDropTarget || tileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+
+                scale: isDragging ? 1.15 : (isDropTarget ? 1.08 : 1.0)
+
+                Behavior on scale {
+                  NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
                 }
-              }
-            }
-          }
-
-          // Icon Grid
-          Flow {
-            id: itemsGrid
-            visible: root.activeDrawerItems.length > 0
-            Layout.fillWidth: true
-            spacing: Style.space(10)
-            clip: false
-
-            Repeater {
-              id: itemsRepeater
-              model: root.activeDrawerItems
-
-              delegate: Item {
-                id: itemDelegate
-                required property var modelData
-                required property int index
-
-                readonly property string childId: String(modelData.id || modelData)
-                readonly property var registryEntry: {
-                  var registry = root.host ? root.host.barWidgetRegistry : null
-                  var widgets = registry ? registry.widgets : null
-                  return widgets && widgets[childId] ? widgets[childId] : null
+                Behavior on color {
+                  ColorAnimation { duration: 120 }
                 }
-                readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
-                readonly property bool isDragging: root.draggingIndex === index
-                readonly property bool isDropTarget: root.dropTargetIndex === index && root.draggingIndex !== index
+                Loader {
+                  id: nativeWidgetLoader
+                  anchors.centerIn: parent
+                  active: !root.editingMode && registryEntry !== null
+                  sourceComponent: registryEntry ? registryEntry.component : null
+                  onLoaded: {
+                    var target = item
+                    if (!target || !root.host) return
+                    if ("bar" in target) {
+                      var nextBar = firstParty ? root.host : root.host.pluginBarApiFor(childId, childId, true)
+                      if (target.bar !== nextBar) target.bar = nextBar
+                    }
+                    if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
+                    var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
+                    if ("settings" in target) target.settings = childSettings
+                  }
+                }
 
-                width: Style.space(48)
-                height: Style.space(48)
-                z: isDragging ? 1000 : (tileHover.containsMouse ? 100 : 1)
-
-                Component.onCompleted: root.registerChild(itemDelegate)
-                Component.onDestruction: root.unregisterChild(itemDelegate)
-
-                BorderSurface {
-                  anchors.fill: parent
-                  radius: Style.cornerRadius
-                  color: isDragging ? Qt.alpha(Color.accent, 0.25) : (tileHover.containsMouse ? Color.subtextBackground : "transparent")
-                  borderSpec: root.editingMode
-                    ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
-                    : (isDropTarget || tileHover.containsMouse ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
-
-                  scale: isDragging ? 1.15 : (isDropTarget ? 1.08 : 1.0)
+                Text {
+                  visible: root.editingMode || nativeWidgetLoader.status !== Loader.Ready || !nativeWidgetLoader.item
+                  anchors.centerIn: parent
+                  text: modelData.icon || "\uf013"
+                  color: (isDragging || tileHover.hovered || isDropTarget) ? Color.accent : Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.displayMedium
+                  scale: (tileHover.hovered || isDragging) ? 1.15 : 1.0
 
                   Behavior on scale {
-                    NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                   }
                   Behavior on color {
                     ColorAnimation { duration: 120 }
                   }
+                }
+              }
 
-                  Loader {
-                    id: nativeWidgetLoader
-                    anchors.centerIn: parent
-                    active: !root.editingMode && registryEntry !== null
-                    sourceComponent: registryEntry ? registryEntry.component : null
-                    onLoaded: {
-                      var target = item
-                      if (!target || !root.host) return
-                      if ("bar" in target) {
-                        var nextBar = firstParty ? root.host : root.host.pluginBarApiFor(childId, childId, true)
-                        if (target.bar !== nextBar) target.bar = nextBar
-                      }
-                      if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
-                      var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
-                      if ("settings" in target) target.settings = childSettings
-                    }
-                  }
+              // Edit Mode "X" Badge in Top-Right Corner
+              BorderSurface {
+                visible: root.editingMode && !isDragging
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: -Style.space(4)
+                anchors.rightMargin: -Style.space(4)
+                width: Style.space(18)
+                height: Style.space(18)
+                radius: 9
+                color: Color.urgent || "#ff4455"
+                z: 300
 
-                  Text {
-                    visible: root.editingMode || nativeWidgetLoader.status !== Loader.Ready || !nativeWidgetLoader.item
-                    anchors.centerIn: parent
-                    text: modelData.icon || "\uf013"
-                    color: (isDragging || tileHover.containsMouse || isDropTarget) ? Color.accent : Color.foreground
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.displayMedium
-                    scale: (tileHover.containsMouse || isDragging) ? 1.15 : 1.0
+                Text {
+                  anchors.centerIn: parent
+                  text: "\uf00d"
+                  color: "#ffffff"
+                  font.family: Style.font.family
+                  font.pixelSize: Math.round(Style.font.caption * 0.8)
+                  font.bold: true
+                }
+              }
 
-                    Behavior on scale {
-                      NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-                    }
-                    Behavior on color {
-                      ColorAnimation { duration: 120 }
-                    }
-                  }
+              // Floating Name Pill
+              BorderSurface {
+                id: floatingPill
+                visible: !root.editingMode && !isDragging && tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible)
+                opacity: visible ? 1.0 : 0.0
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: -implicitHeight - Style.space(6)
+                z: 200
+                implicitHeight: Style.space(24)
+                implicitWidth: pillLabel.implicitWidth + Style.space(16)
+                radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
+                color: Color.background
+                borderSpec: Border.controlSpec("hover", Color.accent, Color.accent)
+
+                Behavior on opacity {
+                  NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                 }
 
-                // Edit Mode "X" Badge in Top-Right Corner
-                BorderSurface {
-                  visible: root.editingMode && !isDragging
-                  anchors.top: parent.top
-                  anchors.right: parent.right
-                  anchors.topMargin: -Style.space(4)
-                  anchors.rightMargin: -Style.space(4)
-                  width: Style.space(18)
-                  height: Style.space(18)
-                  radius: 9
-                  color: Color.urgent || "#ff4455"
-                  z: 300
+                Text {
+                  id: pillLabel
+                  anchors.centerIn: parent
+                  text: modelData.name || modelData.id
+                  color: Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
 
-                  Text {
-                    anchors.centerIn: parent
-                    text: "\uf00d"
-                    color: "#ffffff"
-                    font.family: Style.font.family
-                    font.pixelSize: Math.round(Style.font.caption * 0.8)
-                    font.bold: true
+              HoverHandler {
+                id: tileHover
+                enabled: !root.editingMode
+                onHoveredChanged: {
+                  if (hovered && root.draggingIndex < 0) {
+                    root.hoveredPluginName = modelData.name || modelData.id
+                  } else if (!hovered && root.hoveredPluginName === (modelData.name || modelData.id)) {
+                    root.hoveredPluginName = ""
                   }
                 }
+              }
 
-                // Floating Name Pill
-                BorderSurface {
-                  id: floatingPill
-                  visible: !root.editingMode && !isDragging && tileHover.containsMouse
-                  opacity: (!root.editingMode && !isDragging && tileHover.containsMouse) ? 1.0 : 0.0
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  y: -implicitHeight - Style.space(6)
-                  z: 200
-                  implicitHeight: Style.space(24)
-                  implicitWidth: pillLabel.implicitWidth + Style.space(16)
-                  radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
-                  color: Color.background
-                  borderSpec: Border.controlSpec("hover", Color.accent, Color.accent)
+              MouseArea {
+                id: editMouseArea
+                anchors.fill: parent
+                enabled: root.editingMode || nativeWidgetLoader.status !== Loader.Ready || !nativeWidgetLoader.item
+                cursorShape: root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor
 
-                  Behavior on opacity {
-                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-                  }
+                property real pressX: 0
+                property real pressY: 0
+                property bool hasMoved: false
 
-                  Text {
-                    id: pillLabel
-                    anchors.centerIn: parent
-                    text: modelData.name || modelData.id
-                    color: Color.foreground
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                  }
+                onPressed: function(mouse) {
+                  pressX = mouse.x
+                  pressY = mouse.y
+                  hasMoved = false
                 }
 
-                MouseArea {
-                  id: tileHover
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  cursorShape: root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor
+                onPositionChanged: function(mouse) {
+                  if (mouse.buttons & Qt.LeftButton) {
+                    var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
+                    if (dist > 8) {
+                      hasMoved = true
+                      root.draggingIndex = index
 
-                  property real pressX: 0
-                  property real pressY: 0
-                  property bool hasMoved: false
-
-                  onPressed: function(mouse) {
-                    pressX = mouse.x
-                    pressY = mouse.y
-                    hasMoved = false
-                  }
-
-                  onPositionChanged: function(mouse) {
-                    if (mouse.buttons & Qt.LeftButton) {
-                      var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
-                      if (dist > 8) {
-                        hasMoved = true
-                        root.draggingIndex = index
-
-                        // Find target item under mouse
-                        var globalPos = mapToItem(itemsGrid, mouse.x, mouse.y)
-                        var child = itemsGrid.childAt(globalPos.x, globalPos.y)
-                        if (child && child !== itemDelegate) {
-                          for (var k = 0; k < itemsRepeater.count; k++) {
-                            if (itemsRepeater.itemAt(k) === child) {
-                              root.dropTargetIndex = k
-                              break
-                            }
+                      var globalPos = mapToItem(itemsGrid, mouse.x, mouse.y)
+                      var child = itemsGrid.childAt(globalPos.x, globalPos.y)
+                      if (child && child !== itemDelegate) {
+                        for (var k = 0; k < itemsRepeater.count; k++) {
+                          if (itemsRepeater.itemAt(k) === child) {
+                            root.dropTargetIndex = k
+                            break
                           }
                         }
                       }
                     }
                   }
+                }
 
-                  onReleased: function(mouse) {
-                    if (hasMoved && root.draggingIndex >= 0 && root.dropTargetIndex >= 0) {
-                      root.reorderItem(root.draggingIndex, root.dropTargetIndex)
-                    }
-                    root.draggingIndex = -1
-                    root.dropTargetIndex = -1
-                    hasMoved = false
+                onReleased: function(mouse) {
+                  if (hasMoved && root.draggingIndex >= 0 && root.dropTargetIndex >= 0) {
+                    root.reorderItem(root.draggingIndex, root.dropTargetIndex)
                   }
+                  root.draggingIndex = -1
+                  root.dropTargetIndex = -1
+                  hasMoved = false
+                }
 
-                  onCanceled: {
-                    root.draggingIndex = -1
-                    root.dropTargetIndex = -1
-                    hasMoved = false
-                  }
+                onCanceled: {
+                  root.draggingIndex = -1
+                  root.dropTargetIndex = -1
+                  hasMoved = false
+                }
 
-                  onEntered: {
-                    if (root.draggingIndex < 0) {
-                      root.hoveredPluginName = modelData.name || modelData.id
-                    }
-                  }
-
-                  onExited: {
-                    if (root.hoveredPluginName === (modelData.name || modelData.id)) {
-                      root.hoveredPluginName = ""
-                    }
-                  }
-
-                  onClicked: {
-                    if (hasMoved) return
-                    if (root.editingMode) {
-                      root.restoreToBar(modelData.id)
-                    } else if (!nativeWidgetLoader.item) {
-                      root.launchPlugin(modelData.id)
-                    }
+                onClicked: {
+                  if (hasMoved) return
+                  if (root.editingMode) {
+                    root.restoreToBar(modelData.id)
+                  } else if (!nativeWidgetLoader.item) {
+                    root.launchPlugin(modelData.id)
                   }
                 }
               }
             }
           }
         }
+      }
 
-        // ── ADD VIEW: SELECT WIDGETS FROM BAR ────────────────────────────────
-        ColumnLayout {
+      // ── ADD VIEW: SELECT WIDGETS FROM BAR ────────────────────────────────
+      ColumnLayout {
+        Layout.fillWidth: true
+        visible: root.addingMode
+        spacing: Style.space(6)
+
+        Text {
+          text: "Select a plugin to move into Drawer:"
+          color: Color.subtext
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
           Layout.fillWidth: true
-          visible: root.addingMode
-          spacing: Style.space(6)
+        }
 
-          Text {
-            text: "Select a plugin to move into Drawer:"
-            color: Color.subtext
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            wrapMode: Text.WordWrap
-            Layout.fillWidth: true
-          }
+        Flickable {
+          Layout.fillWidth: true
+          Layout.preferredHeight: Math.min(Style.space(280), barWidgetsCol.implicitHeight)
+          contentHeight: barWidgetsCol.implicitHeight
+          clip: true
 
-          Flickable {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(Style.space(280), barWidgetsCol.implicitHeight)
-            contentHeight: barWidgetsCol.implicitHeight
-            clip: true
+          ColumnLayout {
+            id: barWidgetsCol
+            width: parent.width
+            spacing: Style.space(4)
 
-            ColumnLayout {
-              id: barWidgetsCol
-              width: parent.width
-              spacing: Style.space(4)
+            Repeater {
+              model: root.barWidgetsList
 
-              Repeater {
-                model: root.barWidgetsList
+              delegate: BorderSurface {
+                required property var modelData
+                required property int index
 
-                delegate: BorderSurface {
-                  required property var modelData
-                  required property int index
+                readonly property var meta: (root.discoveredMap && root.discoveredMap[modelData.id]) ? root.discoveredMap[modelData.id] : DrawerModel.resolveItemMetadata(modelData.id, null)
 
-                  readonly property var meta: (root.discoveredMap && root.discoveredMap[modelData.id]) ? root.discoveredMap[modelData.id] : DrawerModel.resolveItemMetadata(modelData.id, null)
+                Layout.fillWidth: true
+                implicitHeight: Style.space(40)
+                radius: Style.cornerRadius
+                color: rowHover.containsMouse ? Color.subtextBackground : "transparent"
 
-                  Layout.fillWidth: true
-                  implicitHeight: Style.space(40)
-                  radius: Style.cornerRadius
-                  color: rowHover.containsMouse ? Color.subtextBackground : "transparent"
+                borderSpec: rowHover.containsMouse
+                  ? Border.controlSpec("hover", Color.accent, Color.accent)
+                  : Border.none
 
-                  borderSpec: rowHover.containsMouse
-                    ? Border.controlSpec("hover", Color.accent, Color.accent)
-                    : Border.none
+                MouseArea {
+                  id: rowHover
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.hideFromBarAndReturn(modelData.id)
+                }
 
-                  MouseArea {
-                    id: rowHover
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.hideFromBarAndReturn(modelData.id)
+                RowLayout {
+                  anchors.fill: parent
+                  anchors.leftMargin: Style.space(10)
+                  anchors.rightMargin: Style.space(10)
+                  spacing: Style.space(10)
+
+                  Text {
+                    text: meta.icon || "\uf013"
+                    color: rowHover.containsMouse ? Color.accent : Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.icon
+                    Layout.preferredWidth: Style.space(24)
                   }
 
-                  RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: Style.space(10)
-                    anchors.rightMargin: Style.space(10)
-                    spacing: Style.space(10)
+                  Text {
+                    text: meta.name || modelData.id
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                  }
 
-                    Text {
-                      text: meta.icon || "\uf013"
-                      color: rowHover.containsMouse ? Color.accent : Color.foreground
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.icon
-                      Layout.preferredWidth: Style.space(24)
-                    }
-
-                    Text {
-                      text: meta.name || modelData.id
-                      color: Color.foreground
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.body
-                      font.bold: true
-                      elide: Text.ElideRight
-                      Layout.fillWidth: true
-                    }
-
-                    Text {
-                      text: "\uf067"
-                      color: rowHover.containsMouse ? Color.accent : Color.subtext
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.caption
-                    }
+                  Text {
+                    text: "\uf067"
+                    color: rowHover.containsMouse ? Color.accent : Color.subtext
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
                   }
                 }
               }
