@@ -1,0 +1,9 @@
+# Omarchy temporary & cache
+*.qmlc
+*.jsc
+.cache/
+
+# OS / Temporary
+*.log
+*.tmp
+.DS_Store

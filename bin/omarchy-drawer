@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# omarchy-drawer CLI control interface
+set -euo pipefail
+
+TARGET="evcode.drawer"
+
+usage() {
+  cat << 'EOF'
+Usage: omarchy-drawer [COMMAND] [ARGS]
+
+Commands:
+  toggle              Toggle the drawer open/closed state
+  open                Open the drawer
+  close               Close the drawer
+  list                List items currently inside the drawer
+  add <plugin_id>     Add a plugin into the drawer
+  remove <plugin_id>  Remove a plugin from the drawer
+  settings            Open the drawer settings popup
+  help, -h, --help    Show this message
+EOF
+}
+
+cmd="${1:-toggle}"
+
+case "$cmd" in
+  toggle)
+    omarchy-shell shell toggle "$TARGET"
+    ;;
+  open)
+    omarchy-shell shell open "$TARGET"
+    ;;
+  close)
+    omarchy-shell shell close "$TARGET"
+    ;;
+  list)
+    omarchy-shell "$TARGET" list
+    ;;
+  add)
+    [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
+    omarchy-shell "$TARGET" add "$2"
+    ;;
+  remove)
+    [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
+    omarchy-shell "$TARGET" remove "$2"
+    ;;
+  settings)
+    omarchy-shell "$TARGET" manage
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage
+    exit 1
+    ;;
+esac
