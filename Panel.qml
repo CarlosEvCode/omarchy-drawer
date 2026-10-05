@@ -24,6 +24,7 @@ Panel {
   property var activeDrawerItems: DrawerModel.getActiveItemList(rawDrawerItemIds, discoveredMap)
   property var barWidgetsList: []
   property bool addingMode: false
+  property bool editingMode: false
 
   function reloadAllData() {
     loadDrawerConfigProc.running = false
@@ -156,6 +157,7 @@ Panel {
     if (opened) {
       root.reloadAllData()
       root.addingMode = false
+      root.editingMode = false
     }
   }
 
@@ -166,7 +168,7 @@ Panel {
     bar: root.bar
     text: "\uf187"
     active: root.opened
-    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " ocultos)"
+    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " plugins)"
     onPressed: function(buttonCode) {
       root.toggle()
     }
@@ -189,6 +191,8 @@ Panel {
       onCloseRequested: {
         if (root.addingMode) {
           root.addingMode = false
+        } else if (root.editingMode) {
+          root.editingMode = false
         } else {
           root.close()
         }
@@ -221,12 +225,21 @@ Panel {
           }
 
           Text {
-            text: root.addingMode ? "Añadir a Drawer" : "Drawer"
+            text: root.addingMode ? "Añadir a Drawer" : (root.editingMode ? "Editar Drawer" : "Drawer")
             color: Color.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.title
             font.bold: true
             Layout.fillWidth: true
+          }
+
+          // Edit Mode Toggle Button (Pencil / Checkmark)
+          Button {
+            visible: !root.addingMode && root.activeDrawerItems.length > 0
+            iconText: root.editingMode ? "\uf00c" : "\uf304"
+            tooltipText: root.editingMode ? "Listo / Guardar" : "Editar Drawer (quitar plugins)"
+            selected: root.editingMode
+            onClicked: root.editingMode = !root.editingMode
           }
 
           // + Button to add plugins from bar
@@ -237,6 +250,7 @@ Panel {
             selected: root.addingMode
             onClicked: {
               root.reloadAllData()
+              root.editingMode = false
               root.addingMode = true
             }
           }
@@ -252,7 +266,7 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // ── VISTA PRINCIPAL: DRAWER GENERAL (ICONOS TRANSPARENTES + FLOATING PILL) ──
+        // ── VISTA PRINCIPAL: DRAWER GENERAL ──────────────────────────────────
         ColumnLayout {
           Layout.fillWidth: true
           visible: !root.addingMode
@@ -292,7 +306,7 @@ Panel {
             }
           }
 
-          // Icon Grid with Completely Transparent Background
+          // Icon Grid
           Flow {
             visible: root.activeDrawerItems.length > 0
             Layout.fillWidth: true
@@ -314,9 +328,9 @@ Panel {
                   anchors.fill: parent
                   radius: Style.cornerRadius
                   color: tileHover.containsMouse ? Color.subtextBackground : "transparent"
-                  borderSpec: tileHover.containsMouse
-                    ? Border.controlSpec("hover", Color.accent, Color.accent)
-                    : Border.none
+                  borderSpec: root.editingMode
+                    ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
+                    : (tileHover.containsMouse ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
                   Behavior on color {
                     ColorAnimation { duration: 120 }
@@ -339,11 +353,34 @@ Panel {
                   }
                 }
 
-                // Floating Name Pill
+                // Edit Mode "X" Badge in Top-Right Corner
+                BorderSurface {
+                  visible: root.editingMode
+                  anchors.top: parent.top
+                  anchors.right: parent.right
+                  anchors.topMargin: -Style.space(4)
+                  anchors.rightMargin: -Style.space(4)
+                  width: Style.space(18)
+                  height: Style.space(18)
+                  radius: 9
+                  color: Color.urgent || "#ff4455"
+                  z: 300
+
+                  Text {
+                    anchors.centerIn: parent
+                    text: "\uf00d"
+                    color: "#ffffff"
+                    font.family: Style.font.family
+                    font.pixelSize: Math.round(Style.font.caption * 0.8)
+                    font.bold: true
+                  }
+                }
+
+                // Floating Name Pill (visible in normal mode on hover)
                 BorderSurface {
                   id: floatingPill
-                  visible: tileHover.containsMouse
-                  opacity: tileHover.containsMouse ? 1.0 : 0.0
+                  visible: !root.editingMode && tileHover.containsMouse
+                  opacity: (!root.editingMode && tileHover.containsMouse) ? 1.0 : 0.0
                   anchors.horizontalCenter: parent.horizontalCenter
                   y: -implicitHeight - Style.space(6)
                   z: 200
@@ -373,12 +410,13 @@ Panel {
                   anchors.fill: parent
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
-                  acceptedButtons: Qt.LeftButton | Qt.RightButton
 
-                  onClicked: function(mouse) {
-                    if (mouse.button === Qt.RightButton) {
+                  onClicked: {
+                    if (root.editingMode) {
+                      // In edit mode: clicking removes from drawer and restores to bar
                       root.restoreToBar(modelData.id)
                     } else {
+                      // In normal mode: clicking opens the plugin
                       root.launchPlugin(modelData.id)
                     }
                   }
