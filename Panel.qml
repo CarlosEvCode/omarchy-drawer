@@ -39,26 +39,41 @@ Panel {
     var meta = (discoveredMap && discoveredMap[targetId]) ? discoveredMap[targetId] : DrawerModel.resolveItemMetadata(targetId, null)
     var ipcTarget = meta.ipcTarget || targetId
 
-    // Try driving through mounted loader instances
-    for (var i = 0; i < mountedLoadersRepeater.count; i++) {
-      var loader = mountedLoadersRepeater.itemAt(i)
-      if (loader && loader.modelData === targetId && loader.item) {
-        if (typeof loader.item.toggle === "function") { loader.item.toggle() }
-        else if (typeof loader.item.open === "function") { loader.item.open() }
-        else if (typeof loader.item.show === "function") { loader.item.show() }
-        else if (typeof loader.item.togglePanel === "function") { loader.item.togglePanel() }
-      }
-    }
-
-    // Trigger IPC commands
-    triggerProc.command = [
-      "bash", "-c",
-      "omarchy-shell " + ipcTarget + " toggle 2>/dev/null || omarchy-shell " + targetId + " toggle 2>/dev/null || omarchy-shell shell toggle " + targetId + " 2>/dev/null || omarchy-shell " + ipcTarget + " open 2>/dev/null || true"
-    ]
-    triggerProc.running = false
-    triggerProc.running = true
-
+    // 1. Close drawer panel first so focus handoff is clean and no dismissal collisions happen
     root.close()
+
+    // 2. Open target plugin smoothly after drawer close
+    Qt.callLater(function() {
+      var handled = false
+      for (var i = 0; i < mountedLoadersRepeater.count; i++) {
+        var loader = mountedLoadersRepeater.itemAt(i)
+        if (loader && loader.modelData === targetId && loader.item) {
+          if (typeof loader.item.open === "function") {
+            loader.item.open()
+            handled = true
+          } else if (typeof loader.item.show === "function") {
+            loader.item.show()
+            handled = true
+          } else if (typeof loader.item.toggle === "function") {
+            loader.item.toggle()
+            handled = true
+          } else if (typeof loader.item.togglePanel === "function") {
+            loader.item.togglePanel()
+            handled = true
+          }
+          break
+        }
+      }
+
+      if (!handled) {
+        triggerProc.command = [
+          "bash", "-c",
+          "omarchy-shell " + ipcTarget + " open 2>/dev/null || omarchy-shell " + ipcTarget + " show 2>/dev/null || omarchy-shell " + ipcTarget + " toggle 2>/dev/null || omarchy-shell " + targetId + " open 2>/dev/null || omarchy-shell " + targetId + " toggle 2>/dev/null || true"
+        ]
+        triggerProc.running = false
+        triggerProc.running = true
+      }
+    })
   }
 
   function hideFromBarAndReturn(pluginId) {
@@ -286,7 +301,7 @@ Panel {
             }
           }
 
-          // Edit Mode Toggle Button (Square Edit \uf044 / Done \uf00c)
+          // Edit Mode Toggle Button
           Button {
             visible: !root.addingMode && root.activeDrawerItems.length > 0
             iconText: root.editingMode ? "\uf00c" : "\uf044"
