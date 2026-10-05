@@ -39,7 +39,7 @@ Panel {
     var meta = (discoveredMap && discoveredMap[targetId]) ? discoveredMap[targetId] : DrawerModel.resolveItemMetadata(targetId, null)
     var ipcTarget = meta.ipcTarget || targetId
 
-    // 1. Close drawer panel first so focus handoff is clean and no dismissal collisions happen
+    // 1. Close drawer panel first so focus handoff is clean
     root.close()
 
     // 2. Open target plugin smoothly after drawer close
@@ -59,6 +59,9 @@ Panel {
             handled = true
           } else if (typeof loader.item.togglePanel === "function") {
             loader.item.togglePanel()
+            handled = true
+          } else if (loader.item.controller && typeof loader.item.controller.show === "function") {
+            loader.item.controller.show()
             handled = true
           }
           break
@@ -101,10 +104,8 @@ Panel {
         active: true
         source: {
           var userPath = Quickshell.env("HOME") + "/.config/omarchy/plugins/" + modelData + "/"
-          var meta = root.discoveredMap[modelData]
-          var entry = (meta && meta.manifest && meta.manifest.entryPoints)
-            ? (meta.manifest.entryPoints.barWidget || meta.manifest.entryPoints.panel || "BarWidget.qml")
-            : "BarWidget.qml"
+          var meta = (root.discoveredMap && root.discoveredMap[modelData]) ? root.discoveredMap[modelData] : DrawerModel.resolveItemMetadata(modelData, null)
+          var entry = meta.entryPoint || "Panel.qml"
           return Qt.resolvedUrl(userPath + entry)
         }
         onLoaded: {
