@@ -166,7 +166,7 @@ Panel {
     bar: root.bar
     text: "\uf187"
     active: root.opened
-    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " plugins)"
+    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " ocultos)"
     onPressed: function(buttonCode) {
       root.toggle()
     }
@@ -252,7 +252,7 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // ── VISTA PRINCIPAL: DRAWER GENERAL (ICON GRID CON FLOATING TOOLTIP) ──
+        // ── VISTA PRINCIPAL: DRAWER GENERAL (ICONOS TRANSPARENTES + FLOATING PILL) ──
         ColumnLayout {
           Layout.fillWidth: true
           visible: !root.addingMode
@@ -265,7 +265,7 @@ Panel {
             Layout.fillWidth: true
             implicitHeight: Style.space(70)
             radius: Style.cornerRadius
-            color: Style.spaceFill
+            color: "transparent"
 
             ColumnLayout {
               anchors.centerIn: parent
@@ -292,7 +292,7 @@ Panel {
             }
           }
 
-          // Unified Icon Grid with Floating Tooltips
+          // Icon Grid with Completely Transparent Background
           Flow {
             visible: root.activeDrawerItems.length > 0
             Layout.fillWidth: true
@@ -306,18 +306,17 @@ Panel {
                 required property var modelData
                 required property int index
 
-                width: Style.space(52)
-                height: Style.space(52)
+                width: Style.space(48)
+                height: Style.space(48)
                 z: tileHover.containsMouse ? 100 : 1
 
                 BorderSurface {
                   anchors.fill: parent
                   radius: Style.cornerRadius
-                  color: tileHover.containsMouse ? Color.subtextBackground : Style.spaceFill
-
+                  color: tileHover.containsMouse ? Color.subtextBackground : "transparent"
                   borderSpec: tileHover.containsMouse
                     ? Border.controlSpec("hover", Color.accent, Color.accent)
-                    : Border.controlSpec("normal", Color.foreground, Color.accent)
+                    : Border.none
 
                   Behavior on color {
                     ColorAnimation { duration: 120 }
@@ -334,10 +333,13 @@ Panel {
                     Behavior on scale {
                       NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                     }
+                    Behavior on color {
+                      ColorAnimation { duration: 120 }
+                    }
                   }
                 }
 
-                // Modern Floating Name Pill (Appears floating on hover)
+                // Floating Name Pill
                 BorderSurface {
                   id: floatingPill
                   visible: tileHover.containsMouse
@@ -424,11 +426,11 @@ Panel {
                   Layout.fillWidth: true
                   implicitHeight: Style.space(40)
                   radius: Style.cornerRadius
-                  color: rowHover.containsMouse ? Style.spaceFill : "transparent"
+                  color: rowHover.containsMouse ? Color.subtextBackground : "transparent"
 
                   borderSpec: rowHover.containsMouse
                     ? Border.controlSpec("hover", Color.accent, Color.accent)
-                    : Border.controlSpec("normal", Color.foreground, Color.accent)
+                    : Border.none
 
                   MouseArea {
                     id: rowHover
