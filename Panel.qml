@@ -25,6 +25,7 @@ Panel {
   property var barWidgetsList: []
   property bool addingMode: false
   property bool editingMode: false
+  property string hoveredPluginName: ""
 
   function reloadAllData() {
     loadDrawerConfigProc.running = false
@@ -36,9 +37,27 @@ Panel {
   function launchPlugin(targetId) {
     if (!targetId) return
     var meta = (discoveredMap && discoveredMap[targetId]) ? discoveredMap[targetId] : DrawerModel.resolveItemMetadata(targetId, null)
-    var target = meta.ipcTarget || targetId
-    triggerProc.command = ["omarchy-shell", target, "toggle"]
+    var ipcTarget = meta.ipcTarget || targetId
+
+    // Try driving through mounted loader instances
+    for (var i = 0; i < mountedLoadersRepeater.count; i++) {
+      var loader = mountedLoadersRepeater.itemAt(i)
+      if (loader && loader.modelData === targetId && loader.item) {
+        if (typeof loader.item.toggle === "function") { loader.item.toggle() }
+        else if (typeof loader.item.open === "function") { loader.item.open() }
+        else if (typeof loader.item.show === "function") { loader.item.show() }
+        else if (typeof loader.item.togglePanel === "function") { loader.item.togglePanel() }
+      }
+    }
+
+    // Trigger IPC commands
+    triggerProc.command = [
+      "bash", "-c",
+      "omarchy-shell " + ipcTarget + " toggle 2>/dev/null || omarchy-shell " + targetId + " toggle 2>/dev/null || omarchy-shell shell toggle " + targetId + " 2>/dev/null || omarchy-shell " + ipcTarget + " open 2>/dev/null || true"
+    ]
+    triggerProc.running = false
     triggerProc.running = true
+
     root.close()
   }
 
@@ -53,6 +72,34 @@ Panel {
     if (!pluginId) return
     barActionProc.command = [root.helperBin, "restore-to-bar", pluginId]
     barActionProc.running = true
+  }
+
+  // Load hidden plugins eagerly in background so their IPC and panels exist
+  Item {
+    id: mountedPluginsHolder
+    visible: false
+    Repeater {
+      id: mountedLoadersRepeater
+      model: root.rawDrawerItemIds
+      delegate: Loader {
+        required property string modelData
+        active: true
+        source: {
+          var userPath = Quickshell.env("HOME") + "/.config/omarchy/plugins/" + modelData + "/"
+          var meta = root.discoveredMap[modelData]
+          var entry = (meta && meta.manifest && meta.manifest.entryPoints)
+            ? (meta.manifest.entryPoints.barWidget || meta.manifest.entryPoints.panel || "BarWidget.qml")
+            : "BarWidget.qml"
+          return Qt.resolvedUrl(userPath + entry)
+        }
+        onLoaded: {
+          if (item) {
+            if ("bar" in item) item.bar = root.bar
+            if ("anchorItem" in item) item.anchorItem = button
+          }
+        }
+      }
+    }
   }
 
   Process {
@@ -158,6 +205,7 @@ Panel {
       root.reloadAllData()
       root.addingMode = false
       root.editingMode = false
+      root.hoveredPluginName = ""
     }
   }
 
@@ -168,7 +216,7 @@ Panel {
     bar: root.bar
     text: "\uf187"
     active: root.opened
-    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " plugins)"
+    tooltipText: root.opened ? "Close Drawer" : "Drawer (" + root.activeDrawerItems.length + " items)"
     onPressed: function(buttonCode) {
       root.toggle()
     }
@@ -212,7 +260,7 @@ Panel {
           Button {
             visible: root.addingMode
             iconText: "\uf060"
-            tooltipText: "Volver al Drawer"
+            tooltipText: "Back to Drawer"
             onClicked: root.addingMode = false
           }
 
@@ -225,19 +273,24 @@ Panel {
           }
 
           Text {
-            text: root.addingMode ? "Añadir a Drawer" : (root.editingMode ? "Editar Drawer" : "Drawer")
+            text: root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer"))
             color: Color.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.title
             font.bold: true
+            elide: Text.ElideRight
             Layout.fillWidth: true
+
+            Behavior on color {
+              ColorAnimation { duration: 120 }
+            }
           }
 
-          // Edit Mode Toggle Button (Pencil / Checkmark)
+          // Edit Mode Toggle Button (Square Edit \uf044 / Done \uf00c)
           Button {
             visible: !root.addingMode && root.activeDrawerItems.length > 0
-            iconText: root.editingMode ? "\uf00c" : "\uf304"
-            tooltipText: root.editingMode ? "Listo / Guardar" : "Editar Drawer (quitar plugins)"
+            iconText: root.editingMode ? "\uf00c" : "\uf044"
+            tooltipText: root.editingMode ? "Done" : "Edit"
             selected: root.editingMode
             onClicked: root.editingMode = !root.editingMode
           }
@@ -246,7 +299,7 @@ Panel {
           Button {
             visible: !root.addingMode
             iconText: "\uf067"
-            tooltipText: "Añadir plugin desde la barra"
+            tooltipText: "Add from bar"
             selected: root.addingMode
             onClicked: {
               root.reloadAllData()
@@ -257,7 +310,7 @@ Panel {
 
           Button {
             iconText: "\uf00d"
-            tooltipText: "Cerrar (Esc)"
+            tooltipText: "Close (Esc)"
             onClicked: root.close()
           }
         }
@@ -266,7 +319,7 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // ── VISTA PRINCIPAL: DRAWER GENERAL ──────────────────────────────────
+        // ── MAIN VIEW: UNIFIED DRAWER ICONS ──────────────────────────────────
         ColumnLayout {
           Layout.fillWidth: true
           visible: !root.addingMode
@@ -286,7 +339,7 @@ Panel {
               spacing: Style.space(4)
 
               Text {
-                text: "Drawer vacío"
+                text: "Empty Drawer"
                 color: Color.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
@@ -295,7 +348,7 @@ Panel {
               }
 
               Button {
-                text: "Añadir desde la barra"
+                text: "Add from bar"
                 iconText: "\uf067"
                 Layout.alignment: Qt.AlignHCenter
                 onClicked: {
@@ -376,7 +429,7 @@ Panel {
                   }
                 }
 
-                // Floating Name Pill (visible in normal mode on hover)
+                // Floating Name Pill
                 BorderSurface {
                   id: floatingPill
                   visible: !root.editingMode && tileHover.containsMouse
@@ -411,12 +464,20 @@ Panel {
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
 
+                  onEntered: {
+                    root.hoveredPluginName = modelData.name || modelData.id
+                  }
+
+                  onExited: {
+                    if (root.hoveredPluginName === (modelData.name || modelData.id)) {
+                      root.hoveredPluginName = ""
+                    }
+                  }
+
                   onClicked: {
                     if (root.editingMode) {
-                      // In edit mode: clicking removes from drawer and restores to bar
                       root.restoreToBar(modelData.id)
                     } else {
-                      // In normal mode: clicking opens the plugin
                       root.launchPlugin(modelData.id)
                     }
                   }
@@ -426,14 +487,14 @@ Panel {
           }
         }
 
-        // ── VISTA AL PULSAR [+]: LISTA DE PLUGINS DE LA BARRA ────────────────
+        // ── ADD VIEW: SELECT WIDGETS FROM BAR ────────────────────────────────
         ColumnLayout {
           Layout.fillWidth: true
           visible: root.addingMode
           spacing: Style.space(6)
 
           Text {
-            text: "Selecciona un plugin para moverlo al Drawer:"
+            text: "Select a plugin to move into Drawer:"
             color: Color.subtext
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
