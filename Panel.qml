@@ -143,6 +143,78 @@ Panel {
     barActionProc.running = true
   }
 
+  property var host: null
+  property int hostScanAttempts: 0
+  property var childSlots: []
+
+  readonly property bool childPopoutOpen: {
+    var active = host ? host.activePopout : null
+    return !!active && active !== root && ownsPopout(active)
+  }
+
+  function ownsPopout(target) {
+    if (!target) return false
+    var anchor = null
+    try { anchor = target.anchorItem } catch (e) { anchor = null }
+    for (var i = 0; i < childSlots.length; i++) {
+      var slot = childSlots[i]
+      if (!slot) continue
+      if (slot === target || slot.activeItem === target) return true
+      if (anchor && DrawerModel.isDescendant(anchor, slot)) return true
+    }
+    return false
+  }
+
+  function registerChild(slot) {
+    if (childSlots.indexOf(slot) === -1) childSlots = childSlots.concat([slot])
+  }
+
+  function unregisterChild(slot) {
+    childSlots = childSlots.filter(function(item) { return item !== slot })
+  }
+
+  function resolveHost() {
+    var found = DrawerModel.isHostBar(root.bar) ? root.bar : null
+    if (!found) {
+      var win = root.QsWindow.window
+      found = win ? DrawerModel.findHostBar(win.contentItem) : null
+    }
+    if (found !== host) host = found
+    if (!found && hostScanAttempts < 40) {
+      hostScanAttempts++
+      hostRetry.restart()
+    }
+  }
+
+  Timer {
+    id: hostRetry
+    interval: 250
+    onTriggered: root.resolveHost()
+  }
+
+  onBarChanged: {
+    hostScanAttempts = 0
+    Qt.callLater(resolveHost)
+  }
+
+  Component.onCompleted: {
+    Qt.callLater(resolveHost)
+  }
+
+  Connections {
+    target: root.host
+    ignoreUnknownSignals: true
+    function onActivePopoutChanged() {
+      if (!root.opened || !root.host) return
+      var active = root.host.activePopout
+      if (active === root || active === null) return
+      if (root.ownsPopout(active)) {
+        // Child opened popout, keep alive
+        return
+      }
+    }
+  }
+
   // Load hidden plugins eagerly in background so their IPC and panels exist
   Item {
     id: mountedPluginsHolder
@@ -481,12 +553,23 @@ Panel {
                 required property var modelData
                 required property int index
 
+                readonly property string childId: String(modelData.id || modelData)
+                readonly property var registryEntry: {
+                  var registry = root.host ? root.host.barWidgetRegistry : null
+                  var widgets = registry ? registry.widgets : null
+                  return widgets && widgets[childId] ? widgets[childId] : null
+                }
+                readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
+
                 readonly property bool isDragging: root.draggingIndex === index
                 readonly property bool isDropTarget: root.dropTargetIndex === index && root.draggingIndex !== index
 
                 width: Style.space(48)
                 height: Style.space(48)
                 z: isDragging ? 1000 : (tileHover.containsMouse ? 100 : 1)
+
+                Component.onCompleted: root.registerChild(itemDelegate)
+                Component.onDestruction: root.unregisterChild(itemDelegate)
 
                 BorderSurface {
                   anchors.fill: parent
@@ -505,7 +588,26 @@ Panel {
                     ColorAnimation { duration: 120 }
                   }
 
+                  Loader {
+                    id: nativeWidgetLoader
+                    anchors.centerIn: parent
+                    active: !root.editingMode && registryEntry !== null
+                    sourceComponent: registryEntry ? registryEntry.component : null
+                    onLoaded: {
+                      var target = item
+                      if (!target || !root.host) return
+                      if ("bar" in target) {
+                        var nextBar = firstParty ? root.host : root.host.pluginBarApiFor(childId, childId, true)
+                        if (target.bar !== nextBar) target.bar = nextBar
+                      }
+                      if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
+                      var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
+                      if ("settings" in target) target.settings = childSettings
+                    }
+                  }
+
                   Text {
+                    visible: root.editingMode || nativeWidgetLoader.status !== Loader.Ready || !nativeWidgetLoader.item
                     anchors.centerIn: parent
                     text: modelData.icon || "\uf013"
                     color: (isDragging || tileHover.containsMouse || isDropTarget) ? Color.accent : Color.foreground
@@ -643,7 +745,7 @@ Panel {
                     if (hasMoved) return
                     if (root.editingMode) {
                       root.restoreToBar(modelData.id)
-                    } else {
+                    } else if (!nativeWidgetLoader.item) {
                       root.launchPlugin(modelData.id)
                     }
                   }

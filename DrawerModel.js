@@ -215,6 +215,67 @@ function resolveItemMetadata(pluginId, manifest) {
   };
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function pluginStub(shellConfig, id) {
+  if (!isPlainObject(shellConfig) || !Array.isArray(shellConfig.plugins)) return null;
+  for (var i = 0; i < shellConfig.plugins.length; i++) {
+    var entry = shellConfig.plugins[i];
+    if (isPlainObject(entry) && String(entry.id) === id) return entry;
+  }
+  return null;
+}
+
+function childSettings(id, shellConfig) {
+  var out = {};
+  var stub = pluginStub(shellConfig, id);
+  if (stub) {
+    for (var stubKey in stub) if (stubKey !== "id") out[stubKey] = stub[stubKey];
+  }
+  return out;
+}
+
+function isHostBar(candidate) {
+  return !!candidate
+    && typeof candidate.pluginBarApiFor === "function"
+    && typeof candidate.requestPopout === "function"
+    && !!candidate.barWidgetRegistry;
+}
+
+function findHostBar(rootItem) {
+  if (!rootItem) return null;
+  var stack = [rootItem];
+  var visited = 0;
+  while (stack.length > 0 && visited < 8000) {
+    var node = stack.pop();
+    visited++;
+    if (!node) continue;
+    var candidate = null;
+    try { candidate = node.bar; } catch (e) { candidate = null; }
+    if (isHostBar(candidate)) return candidate;
+    var kids = node.children;
+    if (!kids) continue;
+    for (var i = 0; i < kids.length; i++) stack.push(kids[i]);
+  }
+  return null;
+}
+
+function isDescendant(item, ancestor) {
+  var node = item;
+  for (var guard = 0; node && guard < 64; guard++, node = node.parent) {
+    if (node === ancestor) return true;
+  }
+  return false;
+}
+
+function clamp(value, min, max) {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
 function getActiveItemList(itemIds, discoveredMap) {
   var list = [];
   var ids = itemIds || [];
@@ -226,3 +287,4 @@ function getActiveItemList(itemIds, discoveredMap) {
   }
   return list;
 }
+
