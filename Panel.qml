@@ -15,7 +15,6 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  // Path to backend helpers
   readonly property string helperBin: Quickshell.env("HOME") + "/.local/bin/drawer-helper"
 
   // State
@@ -74,7 +73,7 @@ Panel {
     }
   }
 
-  // Load bar widgets from shell.json
+  // Load bar widgets strictly from shell.json
   Process {
     id: listBarProc
     running: true
@@ -88,7 +87,7 @@ Panel {
     }
   }
 
-  // Load drawer items from ~/.config/omarchy/drawer.json
+  // Load drawer items strictly from ~/.config/omarchy/drawer.json
   Process {
     id: loadDrawerConfigProc
     running: true
@@ -100,20 +99,14 @@ Panel {
         if (cfg && cfg.items && Array.isArray(cfg.items)) {
           root.rawDrawerItemIds = cfg.items
         } else {
-          root.rawDrawerItemIds = [
-            "io.github.nobledoodle.omarchroma",
-            "tiertek.tekscan",
-            "io.github.rsd.omavnc",
-            "io.github.brukb.omarchy-zerotier",
-            "io.github.ricky.whatsapp"
-          ]
+          root.rawDrawerItemIds = []
         }
         root.activeDrawerItems = DrawerModel.getActiveItemList(root.rawDrawerItemIds, root.discoveredMap)
       }
     }
   }
 
-  // Scan installed plugin manifests
+  // Scan installed plugin manifests for accurate icons and names
   Process {
     id: scanManifestsProc
     running: true
@@ -177,7 +170,7 @@ Panel {
     bar: root.bar
     text: "\uf187"
     active: root.opened
-    tooltipText: root.opened ? "Close Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " plugins)"
+    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " ocultos)"
     onPressed: function(buttonCode) {
       root.toggle()
     }
@@ -191,8 +184,8 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(400))
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(540))
+    contentWidth: panel.fittedContentWidth(Style.space(380))
+    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(520))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -237,13 +230,13 @@ Panel {
 
           Button {
             iconText: "\uf021"
-            tooltipText: "Refresh"
+            tooltipText: "Actualizar"
             onClicked: root.reloadAllData()
           }
 
           Button {
             iconText: "\uf00d"
-            tooltipText: "Close (Esc)"
+            tooltipText: "Cerrar (Esc)"
             onClicked: root.close()
           }
         }
@@ -255,7 +248,7 @@ Panel {
 
           Button {
             Layout.fillWidth: true
-            text: "Drawer (" + root.activeDrawerItems.length + ")"
+            text: "Ocultos (" + root.activeDrawerItems.length + ")"
             iconText: "\uf07b"
             selected: root.currentTab === 0
             onClicked: root.currentTab = 0
@@ -263,7 +256,7 @@ Panel {
 
           Button {
             Layout.fillWidth: true
-            text: "Bar Widgets (" + root.barWidgetsList.length + ")"
+            text: "En Barra (" + root.barWidgetsList.length + ")"
             iconText: "\uf0c9"
             selected: root.currentTab === 1
             onClicked: root.currentTab = 1
@@ -274,31 +267,54 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // TAB 0: DRAWER ITEMS (Click to Launch, Quick 1..9, or Put back on bar)
+        // TAB 0: PLUGINS OCULTOS (DRAWER)
         ColumnLayout {
           Layout.fillWidth: true
           visible: root.currentTab === 0
           spacing: Style.space(6)
 
-          Text {
-            text: root.activeDrawerItems.length > 0 ? "Click any plugin to open it, or press numbers 1..9:" : "No plugins in Drawer. Go to 'Bar Widgets' tab to hide widgets here."
-            color: Color.subtext
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            wrapMode: Text.WordWrap
+          // Empty state if no plugins are hidden
+          BorderSurface {
+            visible: root.activeDrawerItems.length === 0
             Layout.fillWidth: true
+            implicitHeight: Style.space(70)
+            radius: Style.cornerRadius
+            color: Style.spaceFill
+
+            ColumnLayout {
+              anchors.centerIn: parent
+              spacing: Style.space(4)
+
+              Text {
+                text: "No hay plugins ocultos"
+                color: Color.foreground
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                font.bold: true
+                Layout.alignment: Qt.AlignHCenter
+              }
+
+              Text {
+                text: "Ve a la pestaña 'En Barra' para ocultar plugins aquí."
+                color: Color.subtext
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                Layout.alignment: Qt.AlignHCenter
+              }
+            }
           }
 
           Flickable {
+            visible: root.activeDrawerItems.length > 0
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(Style.space(300), drawerCol.implicitHeight)
+            Layout.preferredHeight: Math.min(Style.space(320), drawerCol.implicitHeight)
             contentHeight: drawerCol.implicitHeight
             clip: true
 
             ColumnLayout {
               id: drawerCol
               width: parent.width
-              spacing: Style.space(6)
+              spacing: Style.space(4)
 
               Repeater {
                 model: root.activeDrawerItems
@@ -308,7 +324,7 @@ Panel {
                   required property int index
 
                   Layout.fillWidth: true
-                  implicitHeight: Style.space(48)
+                  implicitHeight: Style.space(42)
                   radius: Style.cornerRadius
                   color: itemMouseArea.containsMouse ? Style.spaceFill : "transparent"
 
@@ -326,10 +342,10 @@ Panel {
                     anchors.rightMargin: Style.space(8)
                     spacing: Style.space(8)
 
-                    // Quick key badge
+                    // Quick key badge (1..9)
                     BorderSurface {
-                      Layout.preferredWidth: Style.space(22)
-                      Layout.preferredHeight: Style.space(22)
+                      Layout.preferredWidth: Style.space(20)
+                      Layout.preferredHeight: Style.space(20)
                       radius: 4
                       color: Color.subtextBackground
 
@@ -348,38 +364,26 @@ Panel {
                       text: modelData.icon || "\uf013"
                       color: itemMouseArea.containsMouse ? Color.accent : Color.foreground
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.title
+                      font.pixelSize: Style.font.icon
                       Layout.preferredWidth: Style.space(24)
                     }
 
-                    // Name & Description
-                    ColumnLayout {
+                    // Name ONLY (Clean, no description)
+                    Text {
+                      text: modelData.name || modelData.id
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      elide: Text.ElideRight
                       Layout.fillWidth: true
-                      spacing: 1
-
-                      Text {
-                        text: modelData.name || modelData.id
-                        color: Color.foreground
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.body
-                        font.bold: true
-                        elide: Text.ElideRight
-                      }
-
-                      Text {
-                        text: modelData.description || modelData.id
-                        color: Color.subtext
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        elide: Text.ElideRight
-                        visible: modelData.description !== ""
-                      }
                     }
 
                     // Restore to bar button
                     Button {
                       iconText: "\uf06e"
-                      tooltipText: "Restore directly back onto the top bar"
+                      text: "Mostrar"
+                      tooltipText: "Restaurar a la barra fija"
                       onClicked: root.restoreToBar(modelData.id)
                     }
                   }
@@ -389,31 +393,22 @@ Panel {
           }
         }
 
-        // TAB 1: BAR WIDGETS (HIDE FROM BAR -> MOVE TO DRAWER)
+        // TAB 1: PLUGINS EN LA BARRA (SOLO LOS QUE ESTÁN EN LA BARRA ACTUALMENTE)
         ColumnLayout {
           Layout.fillWidth: true
           visible: root.currentTab === 1
           spacing: Style.space(6)
 
-          Text {
-            text: "Click 'Hide from Bar' to remove an icon from the top bar and access it via Drawer:"
-            color: Color.subtext
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            wrapMode: Text.WordWrap
-            Layout.fillWidth: true
-          }
-
           Flickable {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(Style.space(300), barCol.implicitHeight)
+            Layout.preferredHeight: Math.min(Style.space(320), barCol.implicitHeight)
             contentHeight: barCol.implicitHeight
             clip: true
 
             ColumnLayout {
               id: barCol
               width: parent.width
-              spacing: Style.space(6)
+              spacing: Style.space(4)
 
               Repeater {
                 model: root.barWidgetsList
@@ -423,12 +418,11 @@ Panel {
                   required property int index
 
                   readonly property var meta: (root.discoveredMap && root.discoveredMap[modelData.id]) ? root.discoveredMap[modelData.id] : DrawerModel.resolveItemMetadata(modelData.id, null)
-                  readonly property bool inDrawer: root.isItemInDrawer(modelData.id)
 
                   Layout.fillWidth: true
-                  implicitHeight: Style.space(46)
+                  implicitHeight: Style.space(42)
                   radius: Style.cornerRadius
-                  color: inDrawer ? Style.spaceFill : "transparent"
+                  color: "transparent"
 
                   RowLayout {
                     anchors.fill: parent
@@ -438,38 +432,27 @@ Panel {
 
                     Text {
                       text: meta.icon || "\uf013"
-                      color: inDrawer ? Color.accent : Color.foreground
+                      color: Color.foreground
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.body
+                      font.pixelSize: Style.font.icon
                       Layout.preferredWidth: Style.space(24)
                     }
 
-                    ColumnLayout {
+                    // Name ONLY (Clean, no description)
+                    Text {
+                      text: meta.name || modelData.id
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      elide: Text.ElideRight
                       Layout.fillWidth: true
-                      spacing: 1
-
-                      Text {
-                        text: meta.name || modelData.id
-                        color: Color.foreground
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.body
-                        font.bold: true
-                        elide: Text.ElideRight
-                      }
-
-                      Text {
-                        text: "Bar (" + (modelData.section || "right") + ")" + (meta.description ? " — " + meta.description : "")
-                        color: Color.subtext
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        elide: Text.ElideRight
-                      }
                     }
 
                     Button {
-                      text: "Hide from Bar"
+                      text: "Ocultar"
                       iconText: "\uf070"
-                      tooltipText: "Hide from top bar and place in Drawer"
+                      tooltipText: "Ocultar de la barra y pasar al Drawer"
                       onClicked: root.hideFromBar(modelData.id)
                     }
                   }

@@ -8,14 +8,6 @@ HOME = Path.home()
 SHELL_CONFIG = HOME / ".config" / "omarchy" / "shell.json"
 DRAWER_CONFIG = HOME / ".config" / "omarchy" / "drawer.json"
 
-DEFAULT_DRAWER_ITEMS = [
-    "tiertek.tekscan",
-    "io.github.nobledoodle.omarchroma",
-    "io.github.rsd.omavnc",
-    "io.github.brukb.omarchy-zerotier",
-    "io.github.ricky.whatsapp"
-]
-
 def load_json(path, fallback):
     if not path.exists():
         return fallback
@@ -45,6 +37,7 @@ def list_bar_items():
         for entry in layout.get(section, []):
             if isinstance(entry, dict) and "id" in entry:
                 plugin_id = entry["id"]
+                # Exclude the drawer itself
                 if plugin_id != "evcode.drawer" and plugin_id not in seen:
                     items.append({
                         "id": plugin_id,
@@ -54,10 +47,15 @@ def list_bar_items():
                     seen.add(plugin_id)
     print(json.dumps(items))
 
+def list_drawer_items():
+    drawer_data = load_json(DRAWER_CONFIG, {"items": []})
+    items = drawer_data.get("items", [])
+    print(json.dumps(items))
+
 def hide_from_bar(plugin_id):
     if not plugin_id:
         sys.exit(1)
-    # 1. Update shell.json
+    # 1. Update shell.json: remove from bar.layout
     shell_data = load_json(SHELL_CONFIG, {})
     bar = shell_data.setdefault("bar", {})
     layout = bar.setdefault("layout", {})
@@ -74,15 +72,12 @@ def hide_from_bar(plugin_id):
     if removed:
         save_json(SHELL_CONFIG, shell_data)
 
-    # 2. Update drawer.json
+    # 2. Update drawer.json: add to items
     drawer_data = load_json(DRAWER_CONFIG, {
         "id": "evcode.drawer",
-        "trigger": "hover",
-        "mode": "inline-drawer",
-        "dimInactive": True,
-        "items": DEFAULT_DRAWER_ITEMS[:]
+        "items": []
     })
-    items = drawer_data.setdefault("items", DEFAULT_DRAWER_ITEMS[:])
+    items = drawer_data.setdefault("items", [])
     if plugin_id not in items:
         items.append(plugin_id)
     save_json(DRAWER_CONFIG, drawer_data)
@@ -91,14 +86,13 @@ def hide_from_bar(plugin_id):
 def restore_to_bar(plugin_id):
     if not plugin_id:
         sys.exit(1)
-    # 1. Update shell.json
+    # 1. Update shell.json: add back to bar.layout.right before evcode.drawer
     shell_data = load_json(SHELL_CONFIG, {})
     bar = shell_data.setdefault("bar", {})
     layout = bar.setdefault("layout", {})
     right_list = layout.setdefault("right", [])
     already_on_bar = any(isinstance(e, dict) and e.get("id") == plugin_id for s in ["left", "center", "right"] for e in layout.get(s, []))
     if not already_on_bar:
-        # Insert before evcode.drawer if present, otherwise at end
         drawer_idx = -1
         for i, entry in enumerate(right_list):
             if isinstance(entry, dict) and entry.get("id") == "evcode.drawer":
@@ -110,37 +104,29 @@ def restore_to_bar(plugin_id):
             right_list.append({"id": plugin_id})
         save_json(SHELL_CONFIG, shell_data)
 
-    # 2. Remove from drawer.json
-    drawer_data = load_json(DRAWER_CONFIG, {})
+    # 2. Update drawer.json: remove from items
+    drawer_data = load_json(DRAWER_CONFIG, {"items": []})
     if "items" in drawer_data and isinstance(drawer_data["items"], list):
         if plugin_id in drawer_data["items"]:
             drawer_data["items"].remove(plugin_id)
             save_json(DRAWER_CONFIG, drawer_data)
     print(f"Restored {plugin_id} from Drawer back to Bar")
 
-def toggle_bar_item(plugin_id):
-    layout = get_bar_layout()
-    on_bar = any(isinstance(e, dict) and e.get("id") == plugin_id for s in ["left", "center", "right"] for e in layout.get(s, []))
-    if on_bar:
-        hide_from_bar(plugin_id)
-    else:
-        restore_to_bar(plugin_id)
-
 def main():
     if len(sys.argv) < 2:
-        print("Usage: drawer-helper <list-bar-items|hide-from-bar|restore-to-bar|toggle-bar-item> [plugin_id]")
+        print("Usage: drawer-helper <list-bar-items|list-drawer-items|hide-from-bar|restore-to-bar> [plugin_id]")
         sys.exit(1)
     cmd = sys.argv[1]
     if cmd == "list-bar-items":
         list_bar_items()
+    elif cmd == "list-drawer-items":
+        list_drawer_items()
     elif cmd == "hide-from-bar" and len(sys.argv) >= 3:
         hide_from_bar(sys.argv[2])
     elif cmd == "restore-to-bar" and len(sys.argv) >= 3:
         restore_to_bar(sys.argv[2])
-    elif cmd == "toggle-bar-item" and len(sys.argv) >= 3:
-        toggle_bar_item(sys.argv[2])
     else:
-        print(f"Unknown or invalid command: {cmd}")
+        print(f"Unknown command: {cmd}")
         sys.exit(1)
 
 if __name__ == "__main__":
