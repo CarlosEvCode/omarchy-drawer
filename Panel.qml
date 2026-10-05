@@ -23,6 +23,8 @@ Panel {
   property var discoveredMap: ({})
   property var activeDrawerItems: DrawerModel.getActiveItemList(rawDrawerItemIds, discoveredMap)
   property var barWidgetsList: []
+  property bool addingMode: false
+  property string hoveredPluginName: ""
 
   function reloadAllData() {
     loadDrawerConfigProc.running = false
@@ -40,10 +42,11 @@ Panel {
     root.close()
   }
 
-  function hideFromBar(pluginId) {
+  function hideFromBarAndReturn(pluginId) {
     if (!pluginId) return
     barActionProc.command = [root.helperBin, "hide-from-bar", pluginId]
     barActionProc.running = true
+    root.addingMode = false
   }
 
   function restoreToBar(pluginId) {
@@ -146,13 +149,15 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function list(): string { return JSON.stringify(root.rawDrawerItemIds) }
-    function add(pluginId: string): void { root.hideFromBar(pluginId) }
+    function add(pluginId: string): void { root.hideFromBarAndReturn(pluginId) }
     function remove(pluginId: string): void { root.restoreToBar(pluginId) }
   }
 
   onOpenedChanged: {
     if (opened) {
       root.reloadAllData()
+      root.addingMode = false
+      root.hoveredPluginName = ""
     }
   }
 
@@ -163,7 +168,7 @@ Panel {
     bar: root.bar
     text: "\uf187"
     active: root.opened
-    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " ocultos)"
+    tooltipText: root.opened ? "Cerrar Drawer" : "Omarchy Drawer (" + root.activeDrawerItems.length + " plugins)"
     onPressed: function(buttonCode) {
       root.toggle()
     }
@@ -177,25 +182,40 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(360))
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(500))
+    contentWidth: panel.fittedContentWidth(root.addingMode ? Style.space(340) : Math.max(Style.space(260), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)))
+    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(480))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      onCloseRequested: root.close()
+      onCloseRequested: {
+        if (root.addingMode) {
+          root.addingMode = false
+        } else {
+          root.close()
+        }
+      }
 
       ColumnLayout {
         id: mainColumn
         anchors.fill: parent
-        spacing: Style.space(12)
+        spacing: Style.space(8)
 
-        // Header
+        // HEADER
         RowLayout {
           Layout.fillWidth: true
           spacing: Style.space(8)
 
+          // Back button if in adding mode
+          Button {
+            visible: root.addingMode
+            iconText: "\uf060"
+            tooltipText: "Volver al Drawer"
+            onClicked: root.addingMode = false
+          }
+
           Text {
+            visible: !root.addingMode
             text: "\uf187"
             color: Color.accent
             font.family: Style.font.family
@@ -203,18 +223,29 @@ Panel {
           }
 
           Text {
-            text: "Omarchy Drawer"
+            text: root.addingMode ? "Añadir a Drawer" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")
             color: Color.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.title
             font.bold: true
+            elide: Text.ElideRight
             Layout.fillWidth: true
+
+            Behavior on color {
+              ColorAnimation { duration: 120 }
+            }
           }
 
+          // + Button to add plugins from bar
           Button {
-            iconText: "\uf021"
-            tooltipText: "Actualizar"
-            onClicked: root.reloadAllData()
+            visible: !root.addingMode
+            iconText: "\uf067"
+            tooltipText: "Añadir plugin desde la barra"
+            selected: root.addingMode
+            onClicked: {
+              root.reloadAllData()
+              root.addingMode = true
+            }
           }
 
           Button {
@@ -228,54 +259,50 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // SECCIÓN 1: EN DRAWER (OCULTOS)
+        // ── VISTA PRINCIPAL: DRAWER GENERAL (SOLO ICONOS) ───────────────────
         ColumnLayout {
           Layout.fillWidth: true
+          visible: !root.addingMode
           spacing: Style.space(6)
 
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            Text {
-              text: "En Drawer (" + root.activeDrawerItems.length + ")"
-              color: Color.accent
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body
-              font.bold: true
-              Layout.fillWidth: true
-            }
-
-            Text {
-              text: "Clic para devolver a la barra"
-              color: Color.subtext
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-            }
-          }
-
-          // Empty state when no items are hidden
+          // Empty state when drawer is empty
           BorderSurface {
             visible: root.activeDrawerItems.length === 0
             Layout.fillWidth: true
-            implicitHeight: Style.space(48)
+            implicitHeight: Style.space(70)
             radius: Style.cornerRadius
             color: Style.spaceFill
 
-            Text {
+            ColumnLayout {
               anchors.centerIn: parent
-              text: "Ningún plugin oculto. Haz clic abajo para mover aquí."
-              color: Color.subtext
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
+              spacing: Style.space(4)
+
+              Text {
+                text: "Drawer vacío"
+                color: Color.foreground
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                font.bold: true
+                Layout.alignment: Qt.AlignHCenter
+              }
+
+              Button {
+                text: "Añadir desde la barra"
+                iconText: "\uf067"
+                Layout.alignment: Qt.AlignHCenter
+                onClicked: {
+                  root.reloadAllData()
+                  root.addingMode = true
+                }
+              }
             }
           }
 
-          // Grid of Drawer Icons
+          // Unified Icon Grid
           Flow {
             visible: root.activeDrawerItems.length > 0
             Layout.fillWidth: true
-            spacing: Style.space(6)
+            spacing: Style.space(8)
 
             Repeater {
               model: root.activeDrawerItems
@@ -284,12 +311,12 @@ Panel {
                 required property var modelData
                 required property int index
 
-                width: Style.space(46)
-                height: Style.space(46)
+                width: Style.space(50)
+                height: Style.space(50)
                 radius: Style.cornerRadius
-                color: drawerHover.containsMouse ? Color.subtextBackground : Style.spaceFill
+                color: tileHover.containsMouse ? Color.subtextBackground : Style.spaceFill
 
-                borderSpec: drawerHover.containsMouse
+                borderSpec: tileHover.containsMouse
                   ? Border.controlSpec("hover", Color.accent, Color.accent)
                   : Border.controlSpec("normal", Color.foreground, Color.accent)
 
@@ -300,10 +327,10 @@ Panel {
                 Text {
                   anchors.centerIn: parent
                   text: modelData.icon || "\uf013"
-                  color: Color.accent
+                  color: tileHover.containsMouse ? Color.accent : Color.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.displayMedium
-                  scale: drawerHover.containsMouse ? 1.15 : 1.0
+                  scale: tileHover.containsMouse ? 1.15 : 1.0
 
                   Behavior on scale {
                     NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -311,30 +338,27 @@ Panel {
                 }
 
                 MouseArea {
-                  id: drawerHover
+                  id: tileHover
                   anchors.fill: parent
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
                   acceptedButtons: Qt.LeftButton | Qt.RightButton
 
                   onEntered: {
-                    if (root.bar) {
-                      root.bar.showTooltip(drawerHover, (modelData.name || modelData.id) + " — Clic: mover a barra | Clic der: abrir")
-                    }
+                    root.hoveredPluginName = modelData.name || modelData.id
                   }
 
                   onExited: {
-                    if (root.bar) {
-                      root.bar.hideTooltip(drawerHover)
+                    if (root.hoveredPluginName === (modelData.name || modelData.id)) {
+                      root.hoveredPluginName = ""
                     }
                   }
 
                   onClicked: function(mouse) {
-                    if (root.bar) root.bar.hideTooltip(drawerHover)
                     if (mouse.button === Qt.RightButton) {
-                      root.launchPlugin(modelData.id)
-                    } else {
                       root.restoreToBar(modelData.id)
+                    } else {
+                      root.launchPlugin(modelData.id)
                     }
                   }
                 }
@@ -343,96 +367,88 @@ Panel {
           }
         }
 
-        PanelSeparator {
-          Layout.fillWidth: true
-        }
-
-        // SECCIÓN 2: EN BARRA (ACTIVOS EN LA BARRA SUPERIOR)
+        // ── VISTA AL PULSAR [+]: LISTA DE PLUGINS DE LA BARRA ────────────────
         ColumnLayout {
           Layout.fillWidth: true
+          visible: root.addingMode
           spacing: Style.space(6)
 
-          RowLayout {
+          Text {
+            text: "Selecciona un plugin para moverlo al Drawer:"
+            color: Color.subtext
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
             Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            Text {
-              text: "En Barra (" + root.barWidgetsList.length + ")"
-              color: Color.foreground
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body
-              font.bold: true
-              Layout.fillWidth: true
-            }
-
-            Text {
-              text: "Clic para ocultar y mover al Drawer"
-              color: Color.subtext
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-            }
           }
 
-          Flow {
+          Flickable {
             Layout.fillWidth: true
-            spacing: Style.space(6)
+            Layout.preferredHeight: Math.min(Style.space(280), barWidgetsCol.implicitHeight)
+            contentHeight: barWidgetsCol.implicitHeight
+            clip: true
 
-            Repeater {
-              model: root.barWidgetsList
+            ColumnLayout {
+              id: barWidgetsCol
+              width: parent.width
+              spacing: Style.space(4)
 
-              delegate: BorderSurface {
-                required property var modelData
-                required property int index
+              Repeater {
+                model: root.barWidgetsList
 
-                readonly property var meta: (root.discoveredMap && root.discoveredMap[modelData.id]) ? root.discoveredMap[modelData.id] : DrawerModel.resolveItemMetadata(modelData.id, null)
+                delegate: BorderSurface {
+                  required property var modelData
+                  required property int index
 
-                width: Style.space(46)
-                height: Style.space(46)
-                radius: Style.cornerRadius
-                color: barItemHover.containsMouse ? Style.spaceFill : "transparent"
+                  readonly property var meta: (root.discoveredMap && root.discoveredMap[modelData.id]) ? root.discoveredMap[modelData.id] : DrawerModel.resolveItemMetadata(modelData.id, null)
 
-                borderSpec: barItemHover.containsMouse
-                  ? Border.controlSpec("hover", Color.accent, Color.accent)
-                  : Border.controlSpec("normal", Color.foreground, Color.accent)
+                  Layout.fillWidth: true
+                  implicitHeight: Style.space(40)
+                  radius: Style.cornerRadius
+                  color: rowHover.containsMouse ? Style.spaceFill : "transparent"
 
-                Behavior on color {
-                  ColorAnimation { duration: 120 }
-                }
+                  borderSpec: rowHover.containsMouse
+                    ? Border.controlSpec("hover", Color.accent, Color.accent)
+                    : Border.controlSpec("normal", Color.foreground, Color.accent)
 
-                Text {
-                  anchors.centerIn: parent
-                  text: meta.icon || "\uf013"
-                  color: barItemHover.containsMouse ? Color.accent : Color.foreground
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.icon
-                  scale: barItemHover.containsMouse ? 1.15 : 1.0
-
-                  Behavior on scale {
-                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                  MouseArea {
+                    id: rowHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.hideFromBarAndReturn(modelData.id)
                   }
-                }
 
-                MouseArea {
-                  id: barItemHover
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  cursorShape: Qt.PointingHandCursor
+                  RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.space(10)
+                    anchors.rightMargin: Style.space(10)
+                    spacing: Style.space(10)
 
-                  onEntered: {
-                    if (root.bar) {
-                      root.bar.showTooltip(barItemHover, (meta.name || modelData.id) + " — Clic para ocultar en Drawer")
+                    Text {
+                      text: meta.icon || "\uf013"
+                      color: rowHover.containsMouse ? Color.accent : Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.icon
+                      Layout.preferredWidth: Style.space(24)
                     }
-                  }
 
-                  onExited: {
-                    if (root.bar) {
-                      root.bar.hideTooltip(barItemHover)
+                    Text {
+                      text: meta.name || modelData.id
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      elide: Text.ElideRight
+                      Layout.fillWidth: true
                     }
-                  }
 
-                  onClicked: {
-                    if (root.bar) root.bar.hideTooltip(barItemHover)
-                    root.hideFromBar(modelData.id)
+                    Text {
+                      text: "\uf067"
+                      color: rowHover.containsMouse ? Color.accent : Color.subtext
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption
+                    }
                   }
                 }
               }
