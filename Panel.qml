@@ -24,7 +24,6 @@ Panel {
   property var activeDrawerItems: DrawerModel.getActiveItemList(rawDrawerItemIds, discoveredMap)
   property var barWidgetsList: []
   property bool addingMode: false
-  property string hoveredPluginName: ""
 
   function reloadAllData() {
     loadDrawerConfigProc.running = false
@@ -157,7 +156,6 @@ Panel {
     if (opened) {
       root.reloadAllData()
       root.addingMode = false
-      root.hoveredPluginName = ""
     }
   }
 
@@ -199,7 +197,7 @@ Panel {
       ColumnLayout {
         id: mainColumn
         anchors.fill: parent
-        spacing: Style.space(8)
+        spacing: Style.space(12)
 
         // HEADER
         RowLayout {
@@ -223,17 +221,12 @@ Panel {
           }
 
           Text {
-            text: root.addingMode ? "Añadir a Drawer" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")
+            text: root.addingMode ? "Añadir a Drawer" : "Drawer"
             color: Color.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.title
             font.bold: true
-            elide: Text.ElideRight
             Layout.fillWidth: true
-
-            Behavior on color {
-              ColorAnimation { duration: 120 }
-            }
           }
 
           // + Button to add plugins from bar
@@ -259,11 +252,12 @@ Panel {
           Layout.fillWidth: true
         }
 
-        // ── VISTA PRINCIPAL: DRAWER GENERAL (SOLO ICONOS) ───────────────────
+        // ── VISTA PRINCIPAL: DRAWER GENERAL (ICON GRID CON FLOATING TOOLTIP) ──
         ColumnLayout {
           Layout.fillWidth: true
           visible: !root.addingMode
-          spacing: Style.space(6)
+          spacing: Style.space(10)
+          clip: false
 
           // Empty state when drawer is empty
           BorderSurface {
@@ -298,42 +292,77 @@ Panel {
             }
           }
 
-          // Unified Icon Grid
+          // Unified Icon Grid with Floating Tooltips
           Flow {
             visible: root.activeDrawerItems.length > 0
             Layout.fillWidth: true
-            spacing: Style.space(8)
+            spacing: Style.space(10)
+            clip: false
 
             Repeater {
               model: root.activeDrawerItems
 
-              delegate: BorderSurface {
+              delegate: Item {
                 required property var modelData
                 required property int index
 
-                width: Style.space(50)
-                height: Style.space(50)
-                radius: Style.cornerRadius
-                color: tileHover.containsMouse ? Color.subtextBackground : Style.spaceFill
+                width: Style.space(52)
+                height: Style.space(52)
+                z: tileHover.containsMouse ? 100 : 1
 
-                borderSpec: tileHover.containsMouse
-                  ? Border.controlSpec("hover", Color.accent, Color.accent)
-                  : Border.controlSpec("normal", Color.foreground, Color.accent)
+                BorderSurface {
+                  anchors.fill: parent
+                  radius: Style.cornerRadius
+                  color: tileHover.containsMouse ? Color.subtextBackground : Style.spaceFill
 
-                Behavior on color {
-                  ColorAnimation { duration: 120 }
+                  borderSpec: tileHover.containsMouse
+                    ? Border.controlSpec("hover", Color.accent, Color.accent)
+                    : Border.controlSpec("normal", Color.foreground, Color.accent)
+
+                  Behavior on color {
+                    ColorAnimation { duration: 120 }
+                  }
+
+                  Text {
+                    anchors.centerIn: parent
+                    text: modelData.icon || "\uf013"
+                    color: tileHover.containsMouse ? Color.accent : Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.displayMedium
+                    scale: tileHover.containsMouse ? 1.15 : 1.0
+
+                    Behavior on scale {
+                      NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                    }
+                  }
                 }
 
-                Text {
-                  anchors.centerIn: parent
-                  text: modelData.icon || "\uf013"
-                  color: tileHover.containsMouse ? Color.accent : Color.foreground
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.displayMedium
-                  scale: tileHover.containsMouse ? 1.15 : 1.0
+                // Modern Floating Name Pill (Appears floating on hover)
+                BorderSurface {
+                  id: floatingPill
+                  visible: tileHover.containsMouse
+                  opacity: tileHover.containsMouse ? 1.0 : 0.0
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  y: -implicitHeight - Style.space(6)
+                  z: 200
+                  implicitHeight: Style.space(24)
+                  implicitWidth: pillLabel.implicitWidth + Style.space(16)
+                  radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
+                  color: Color.background
+                  borderSpec: Border.controlSpec("hover", Color.accent, Color.accent)
 
-                  Behavior on scale {
+                  Behavior on opacity {
                     NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                  }
+
+                  Text {
+                    id: pillLabel
+                    anchors.centerIn: parent
+                    text: modelData.name || modelData.id
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
                   }
                 }
 
@@ -343,16 +372,6 @@ Panel {
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
                   acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                  onEntered: {
-                    root.hoveredPluginName = modelData.name || modelData.id
-                  }
-
-                  onExited: {
-                    if (root.hoveredPluginName === (modelData.name || modelData.id)) {
-                      root.hoveredPluginName = ""
-                    }
-                  }
 
                   onClicked: function(mouse) {
                     if (mouse.button === Qt.RightButton) {
