@@ -22,7 +22,7 @@ var KNOWN_PLUGINS_MAP = {
     name: "TekScan",
     icon: "",
     entryPoint: "BarWidget.qml",
-    ipcTarget: "tiertek.tekscan"
+    ipcTarget: "tekscan"
   },
   "io.github.nobledoodle.omarchroma": {
     id: "io.github.nobledoodle.omarchroma",
@@ -125,7 +125,7 @@ var KNOWN_PLUGINS_MAP = {
   "omarchy.tailscale": {
     id: "omarchy.tailscale",
     name: "Tailscale",
-    icon: "\uf0c2",
+    icon: "󰖂",
     entryPoint: "Panel.qml",
     ipcTarget: "tailscale"
   },

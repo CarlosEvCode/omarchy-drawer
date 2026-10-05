@@ -44,6 +44,13 @@ Panel {
 
     // 2. Open target plugin smoothly after drawer close
     Qt.callLater(function() {
+      if (targetId === "tiertek.tekscan" || ipcTarget === "tekscan") {
+        triggerProc.command = ["bash", "-c", "omarchy-shell tekscan toggle 2>/dev/null || omarchy-shell tekscan show 2>/dev/null || true"]
+        triggerProc.running = false
+        triggerProc.running = true
+        return
+      }
+
       var handled = false
       for (var i = 0; i < mountedLoadersRepeater.count; i++) {
         var loader = mountedLoadersRepeater.itemAt(i)
