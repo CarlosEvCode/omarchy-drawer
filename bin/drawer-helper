@@ -55,7 +55,7 @@ def list_drawer_items():
 def hide_from_bar(plugin_id):
     if not plugin_id:
         sys.exit(1)
-    # 1. Update shell.json: remove from bar.layout
+    # 1. Update shell.json: remove from bar.layout and add to plugins list so services stay enabled
     shell_data = load_json(SHELL_CONFIG, {})
     bar = shell_data.setdefault("bar", {})
     layout = bar.setdefault("layout", {})
@@ -69,8 +69,13 @@ def hide_from_bar(plugin_id):
                 else:
                     new_list.append(entry)
             layout[section] = new_list
-    if removed:
-        save_json(SHELL_CONFIG, shell_data)
+    
+    # Keep plugin enabled in background/services
+    plugins_list = shell_data.setdefault("plugins", [])
+    if not any(isinstance(p, dict) and p.get("id") == plugin_id for p in plugins_list):
+        plugins_list.append({"id": plugin_id})
+
+    save_json(SHELL_CONFIG, shell_data)
 
     # 2. Update drawer.json: add to items
     drawer_data = load_json(DRAWER_CONFIG, {
@@ -86,7 +91,7 @@ def hide_from_bar(plugin_id):
 def restore_to_bar(plugin_id):
     if not plugin_id:
         sys.exit(1)
-    # 1. Update shell.json: add back to bar.layout.right before evcode.drawer
+    # 1. Update shell.json: add back to bar.layout.right before evcode.drawer and remove from plugins list
     shell_data = load_json(SHELL_CONFIG, {})
     bar = shell_data.setdefault("bar", {})
     layout = bar.setdefault("layout", {})
@@ -102,7 +107,12 @@ def restore_to_bar(plugin_id):
             right_list.insert(drawer_idx, {"id": plugin_id})
         else:
             right_list.append({"id": plugin_id})
-        save_json(SHELL_CONFIG, shell_data)
+
+    # Remove from plugins list
+    if "plugins" in shell_data and isinstance(shell_data["plugins"], list):
+        shell_data["plugins"] = [p for p in shell_data["plugins"] if not (isinstance(p, dict) and p.get("id") == plugin_id)]
+
+    save_json(SHELL_CONFIG, shell_data)
 
     # 2. Update drawer.json: remove from items
     drawer_data = load_json(DRAWER_CONFIG, {"items": []})
