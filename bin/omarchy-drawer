@@ -19,6 +19,7 @@ Commands:
   launch <plugin_id>       Launch/toggle a specific plugin inside the drawer
   add <plugin_id>          Hide widget from top bar and move it into drawer
   remove <plugin_id>       Restore widget from drawer back to top bar
+  set-anchor <anchor>      Set popout alignment (drawer-left, drawer-center, icon)
   help, -h, --help         Show this message
 EOF
 }
@@ -58,6 +59,10 @@ case "$cmd" in
     [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
     "$HELPER" restore-to-bar "$2"
     omarchy-shell "$TARGET" remove "$2"
+    ;;
+  set-anchor)
+    [[ -n "${2:-}" ]] || { echo "Error: Missing anchor (drawer-left, drawer-center, icon)" >&2; exit 1; }
+    "$HELPER" set-popout-anchor "$2"
     ;;
   -h|--help|help)
     usage

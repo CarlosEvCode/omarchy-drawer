@@ -27,7 +27,9 @@ Panel {
   property var barWidgetsList: []
   property bool addingMode: false
   property bool editingMode: false
+  property bool settingsMode: false
   property bool headerCollapsed: false
+  property string popoutAnchor: "drawer-left"
   property string hoveredPluginName: ""
 
   property bool barDropActive: false
@@ -74,6 +76,9 @@ Panel {
       if (cfg && typeof cfg.headerCollapsed === "boolean") {
         root.headerCollapsed = cfg.headerCollapsed
       }
+      if (cfg && typeof cfg.popoutAnchor === "string") {
+        root.popoutAnchor = cfg.popoutAnchor
+      }
       root.activeDrawerItems = DrawerModel.getActiveItemList(root.rawDrawerItemIds, root.discoveredMap)
     }
     onLoadFailed: {
@@ -89,12 +94,32 @@ Panel {
     barActionProc.running = true
   }
 
+  function setPopoutAnchor(anchor) {
+    root.popoutAnchor = anchor
+    barActionProc.command = [root.helperBin, "set-popout-anchor", anchor]
+    barActionProc.running = true
+  }
+
+  function resolveAnchorItem(delegateItem) {
+    if (root.popoutAnchor === "drawer-left") return shelfAnchorLeft
+    if (root.popoutAnchor === "drawer-center") return shelfAnchorCenter
+    return delegateItem
+  }
+
   onAddingModeChanged: {
     if (addingMode) {
+      root.settingsMode = false
       listBarProc.running = false
       listBarProc.running = true
       scanManifestsProc.running = false
       scanManifestsProc.running = true
+    }
+  }
+
+  onSettingsModeChanged: {
+    if (settingsMode) {
+      root.addingMode = false
+      root.editingMode = false
     }
   }
 
@@ -402,7 +427,7 @@ Panel {
       var cols = Math.min(5, Math.max(1, count))
       return (cols * Style.space(48)) + ((cols - 1) * Style.space(10))
     }
-    contentWidth: root.addingMode
+    contentWidth: (root.addingMode || root.settingsMode)
       ? Style.space(340)
       : (root.wideDrawerItems.length > 0
           ? Math.max(Style.space(340), calcGridWidth)
@@ -410,6 +435,22 @@ Panel {
     contentHeight: mainColumn.implicitHeight
     onDismissed: {
       if (!root.childPopoutOpen) root.close()
+    }
+
+    Item {
+      id: shelfAnchorLeft
+      anchors.left: shelf.left
+      anchors.bottom: shelf.bottom
+      width: Style.space(1)
+      height: Style.space(1)
+    }
+
+    Item {
+      id: shelfAnchorCenter
+      anchors.horizontalCenter: shelf.horizontalCenter
+      anchors.bottom: shelf.bottom
+      width: Style.space(1)
+      height: Style.space(1)
     }
 
     DropArea {
@@ -429,12 +470,12 @@ Panel {
     ColumnLayout {
       id: mainColumn
       anchors.fill: parent
-      spacing: root.headerCollapsed && !root.addingMode ? Style.space(4) : Style.space(12)
+      spacing: root.headerCollapsed && !root.addingMode && !root.settingsMode ? Style.space(4) : Style.space(12)
 
       // MINI EXPAND HANDLE (When header is collapsed in minimalist view)
       RowLayout {
         Layout.fillWidth: true
-        visible: root.headerCollapsed && !root.addingMode
+        visible: root.headerCollapsed && !root.addingMode && !root.settingsMode
 
         Item { Layout.fillWidth: true }
 
@@ -472,19 +513,22 @@ Panel {
       // FULL HEADER
       RowLayout {
         Layout.fillWidth: true
-        visible: !root.headerCollapsed || root.addingMode
+        visible: !root.headerCollapsed || root.addingMode || root.settingsMode
         spacing: Style.space(8)
 
-        // Back button if in adding mode
+        // Back button if in adding mode or settings mode
         Button {
-          visible: root.addingMode
+          visible: root.addingMode || root.settingsMode
           iconText: "\uf060"
           tooltipText: "Back to Drawer"
-          onClicked: root.addingMode = false
+          onClicked: {
+            root.addingMode = false
+            root.settingsMode = false
+          }
         }
 
         Text {
-          visible: !root.addingMode
+          visible: !root.addingMode && !root.settingsMode
           text: root.cardDropActive ? "\uf0120" : "\uf187"
           color: Color.accent
           font.family: Style.font.family
@@ -492,7 +536,7 @@ Panel {
         }
 
         Text {
-          text: root.cardDropActive ? "Drop here" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit (Drag to reorder)" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")))
+          text: root.cardDropActive ? "Drop here" : (root.settingsMode ? "Settings" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit (Drag to reorder)" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer"))))
           color: Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.title
@@ -507,7 +551,7 @@ Panel {
 
         // Edit Mode Toggle Button
         Button {
-          visible: !root.addingMode && root.activeDrawerItems.length > 0
+          visible: !root.addingMode && !root.settingsMode && root.activeDrawerItems.length > 0
           iconText: root.editingMode ? "\uf00c" : "\uf044"
           tooltipText: root.editingMode ? "Done" : "Edit"
           selected: root.editingMode
@@ -516,20 +560,33 @@ Panel {
 
         // + Button to add plugins from bar
         Button {
-          visible: !root.addingMode
+          visible: !root.addingMode && !root.settingsMode
           iconText: "\uf067"
           tooltipText: "Add from bar"
           selected: root.addingMode
           onClicked: {
             root.reloadAllData()
             root.editingMode = false
+            root.settingsMode = false
             root.addingMode = true
+          }
+        }
+
+        // Settings Button (Popout alignment & configuration)
+        Button {
+          visible: !root.addingMode
+          iconText: "\uf013"
+          tooltipText: "Settings (Popout alignment)"
+          selected: root.settingsMode
+          onClicked: {
+            root.editingMode = false
+            root.settingsMode = !root.settingsMode
           }
         }
 
         // Collapse Header Button (Minimalist toggle)
         Button {
-          visible: !root.addingMode
+          visible: !root.addingMode && !root.settingsMode
           iconText: "\uf077"
           tooltipText: "Hide header (Minimalist view)"
           onClicked: root.toggleHeaderCollapsed()
@@ -544,13 +601,13 @@ Panel {
 
       PanelSeparator {
         Layout.fillWidth: true
-        visible: !root.headerCollapsed || root.addingMode
+        visible: !root.headerCollapsed || root.addingMode || root.settingsMode
       }
 
       // ── MAIN VIEW: UNIFIED DRAWER WITH COMPACT GRID & FULL-WIDTH WIDE WIDGETS ──
       ColumnLayout {
         Layout.fillWidth: true
-        visible: !root.addingMode
+        visible: !root.addingMode && !root.settingsMode
         spacing: Style.space(10)
         clip: false
 
@@ -649,7 +706,8 @@ Panel {
                   anchors.centerIn: parent
                   active: !root.editingMode && registryEntry !== null
                   sourceComponent: registryEntry ? registryEntry.component : null
-                  onLoaded: {
+
+                  function syncProperties() {
                     var target = item
                     if (!target || !root.host) return
                     if ("bar" in target) {
@@ -657,8 +715,21 @@ Panel {
                       if (target.bar !== nextBar) target.bar = nextBar
                     }
                     if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
+                    if ("anchorItem" in target) target.anchorItem = root.resolveAnchorItem(itemDelegate)
+                    if ("hostWidget" in target) target.hostWidget = root
                     var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
                     if ("settings" in target) target.settings = childSettings
+                  }
+
+                  onLoaded: syncProperties()
+
+                  Connections {
+                    target: root
+                    function onHostChanged() { nativeWidgetLoader.syncProperties() }
+                    function onPopoutAnchorChanged() { nativeWidgetLoader.syncProperties() }
+                    function onOpenedChanged() {
+                      if (root.opened) nativeWidgetLoader.syncProperties()
+                    }
                   }
                 }
 
@@ -884,6 +955,8 @@ Panel {
                         if (target.bar !== nextBar) target.bar = nextBar
                       }
                       if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
+                      if ("anchorItem" in target) target.anchorItem = root.resolveAnchorItem(wideItemDelegate)
+                      if ("hostWidget" in target) target.hostWidget = root
                       var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
                       if ("settings" in target) target.settings = childSettings
                     }
@@ -893,6 +966,7 @@ Panel {
                     Connections {
                       target: root
                       function onHostChanged() { nativeWideWidgetLoader.syncProperties() }
+                      function onPopoutAnchorChanged() { nativeWideWidgetLoader.syncProperties() }
                       function onOpenedChanged() {
                         if (root.opened) nativeWideWidgetLoader.syncProperties()
                       }
@@ -1042,6 +1116,215 @@ Panel {
                     font.pixelSize: Style.font.caption
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+
+      // ── SETTINGS VIEW: POPOUT ALIGNMENT & CONFIGURATION ──────────────────
+      ColumnLayout {
+        Layout.fillWidth: true
+        visible: root.settingsMode
+        spacing: Style.space(10)
+
+        Text {
+          text: "Popout Window Alignment"
+          color: Color.foreground
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
+
+        Text {
+          text: "Choose where popout windows open when clicking plugins in Drawer:"
+          color: Color.muted
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+          Layout.fillWidth: true
+        }
+
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(6)
+
+          // 1. Left Aligned (Drawer Edge)
+          BorderSurface {
+            Layout.fillWidth: true
+            implicitHeight: Style.space(48)
+            radius: Style.cornerRadius
+            color: root.popoutAnchor === "drawer-left" ? Qt.alpha(Color.accent, 0.15) : (optLeftHover.containsMouse ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
+            borderSpec: root.popoutAnchor === "drawer-left"
+              ? Border.controlSpec("active", Color.accent, Color.accent)
+              : (optLeftHover.containsMouse ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.subtleSpec(Color.surfaceSubtle))
+
+            MouseArea {
+              id: optLeftHover
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.setPopoutAnchor("drawer-left")
+            }
+
+            RowLayout {
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(12)
+              anchors.rightMargin: Style.space(12)
+              spacing: Style.space(10)
+
+              Text {
+                text: "\uf036"
+                color: root.popoutAnchor === "drawer-left" ? Color.accent : Color.foreground
+                font.family: Style.font.family
+                font.pixelSize: Style.font.icon
+              }
+
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                Text {
+                  text: "Left Edge (Acoplado)"
+                  color: Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                }
+
+                Text {
+                  text: "Aligned with the left border of Drawer"
+                  color: Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+              }
+
+              Text {
+                text: root.popoutAnchor === "drawer-left" ? "\uf058" : "\uf111"
+                color: root.popoutAnchor === "drawer-left" ? Color.accent : Color.muted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+              }
+            }
+          }
+
+          // 2. Centered (Drawer Center)
+          BorderSurface {
+            Layout.fillWidth: true
+            implicitHeight: Style.space(48)
+            radius: Style.cornerRadius
+            color: root.popoutAnchor === "drawer-center" ? Qt.alpha(Color.accent, 0.15) : (optCenterHover.containsMouse ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
+            borderSpec: root.popoutAnchor === "drawer-center"
+              ? Border.controlSpec("active", Color.accent, Color.accent)
+              : (optCenterHover.containsMouse ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.subtleSpec(Color.surfaceSubtle))
+
+            MouseArea {
+              id: optCenterHover
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.setPopoutAnchor("drawer-center")
+            }
+
+            RowLayout {
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(12)
+              anchors.rightMargin: Style.space(12)
+              spacing: Style.space(10)
+
+              Text {
+                text: "\uf037"
+                color: root.popoutAnchor === "drawer-center" ? Color.accent : Color.foreground
+                font.family: Style.font.family
+                font.pixelSize: Style.font.icon
+              }
+
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                Text {
+                  text: "Centered"
+                  color: Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                }
+
+                Text {
+                  text: "Centered relative to Drawer window"
+                  color: Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+              }
+
+              Text {
+                text: root.popoutAnchor === "drawer-center" ? "\uf058" : "\uf111"
+                color: root.popoutAnchor === "drawer-center" ? Color.accent : Color.muted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+              }
+            }
+          }
+
+          // 3. Icon Relative (Default)
+          BorderSurface {
+            Layout.fillWidth: true
+            implicitHeight: Style.space(48)
+            radius: Style.cornerRadius
+            color: root.popoutAnchor === "icon" ? Qt.alpha(Color.accent, 0.15) : (optIconHover.containsMouse ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
+            borderSpec: root.popoutAnchor === "icon"
+              ? Border.controlSpec("active", Color.accent, Color.accent)
+              : (optIconHover.containsMouse ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.subtleSpec(Color.surfaceSubtle))
+
+            MouseArea {
+              id: optIconHover
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.setPopoutAnchor("icon")
+            }
+
+            RowLayout {
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(12)
+              anchors.rightMargin: Style.space(12)
+              spacing: Style.space(10)
+
+              Text {
+                text: "\uf009"
+                color: root.popoutAnchor === "icon" ? Color.accent : Color.foreground
+                font.family: Style.font.family
+                font.pixelSize: Style.font.icon
+              }
+
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                Text {
+                  text: "Under Icon"
+                  color: Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                }
+
+                Text {
+                  text: "Directly under the clicked icon"
+                  color: Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+              }
+
+              Text {
+                text: root.popoutAnchor === "icon" ? "\uf058" : "\uf111"
+                color: root.popoutAnchor === "icon" ? Color.accent : Color.muted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
               }
             }
           }
