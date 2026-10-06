@@ -163,8 +163,9 @@ var KNOWN_PLUGINS_MAP = {
     id: "omarchy.clock",
     name: "Clock",
     icon: "\uf017",
-    entryPoint: "Panel.qml",
-    ipcTarget: "clock"
+    entryPoint: "BarWidget.qml",
+    ipcTarget: "clock",
+    isWide: true
   },
   "omarchy.active-window": {
     id: "omarchy.active-window",
@@ -210,14 +211,22 @@ function resolveItemMetadata(pluginId, manifest) {
     || "Panel.qml";
 
   var isWide = false;
-  if (manifest) {
+  if (!isWide && manifest) {
     if (manifest.widgetType === "wide" || manifest.wide === true || manifest.isWide === true) isWide = true;
     if (manifest.barWidget && (manifest.barWidget.wide === true || manifest.barWidget.isWide === true)) isWide = true;
+    var lowerId = String(manifest.id || "").toLowerCase();
+    if (lowerId.indexOf("clock") !== -1 || lowerId.indexOf("media") !== -1 || lowerId.indexOf("workspace") !== -1 || lowerId.indexOf("active-window") !== -1) {
+      isWide = true;
+    }
   }
   if (!isWide && known.isWide === true) isWide = true;
   if (!isWide) {
-    var wideList = ["ajkulundu.mediaplusplus", "omarchy.media", "omarchy.active-window", "omarchy.workspaces"];
+    var wideList = ["ajkulundu.mediaplusplus", "omarchy.media", "omarchy.active-window", "omarchy.workspaces", "omarchy.clock"];
     if (wideList.indexOf(pluginId) !== -1) isWide = true;
+    var lowerPluginId = String(pluginId || "").toLowerCase();
+    if (lowerPluginId.indexOf("clock") !== -1 || lowerPluginId.indexOf("media") !== -1 || lowerPluginId.indexOf("workspace") !== -1 || lowerPluginId.indexOf("active-window") !== -1) {
+      isWide = true;
+    }
   }
 
   return {
