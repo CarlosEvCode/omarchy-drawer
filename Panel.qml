@@ -840,11 +840,15 @@ Panel {
               readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
               readonly property Item activeItem: nativeWideWidgetLoader.item
+              readonly property bool itemReady: !root.editingMode && nativeWideWidgetLoader.status === Loader.Ready && !!nativeWideWidgetLoader.item && nativeWideWidgetLoader.item.visible
 
               Layout.fillWidth: true
-              implicitHeight: Math.max(Style.space(42), nativeWideWidgetLoader.item ? nativeWideWidgetLoader.item.implicitHeight : Style.space(42))
+              implicitHeight: Math.max(Style.space(42), nativeWideWidgetLoader.item && nativeWideWidgetLoader.item.implicitHeight > 0 ? (nativeWideWidgetLoader.item.implicitHeight + Style.space(8)) : Style.space(42))
 
-              Component.onCompleted: root.registerChild(wideItemDelegate)
+              Component.onCompleted: {
+                root.registerChild(wideItemDelegate)
+                if (nativeWideWidgetLoader.item) nativeWideWidgetLoader.syncProperties()
+              }
               Component.onDestruction: root.unregisterChild(wideItemDelegate)
 
               BorderSurface {
@@ -859,28 +863,46 @@ Panel {
                   ColorAnimation { duration: 120 }
                 }
 
-                Loader {
-                  id: nativeWideWidgetLoader
+                Item {
+                  id: wideContentWrapper
                   anchors.fill: parent
-                  anchors.margins: Style.space(2)
-                  active: !root.editingMode && registryEntry !== null
-                  sourceComponent: registryEntry ? registryEntry.component : null
-                  onLoaded: {
-                    var target = item
-                    if (!target || !root.host) return
-                    if ("bar" in target) {
-                      var nextBar = firstParty ? root.host : root.host.pluginBarApiFor(childId, childId, true)
-                      if (target.bar !== nextBar) target.bar = nextBar
+                  anchors.leftMargin: Style.space(8)
+                  anchors.rightMargin: Style.space(8)
+                  clip: false
+
+                  Loader {
+                    id: nativeWideWidgetLoader
+                    anchors.centerIn: parent
+                    active: !root.editingMode && registryEntry !== null
+                    sourceComponent: registryEntry ? registryEntry.component : null
+
+                    function syncProperties() {
+                      var target = item
+                      if (!target || !root.host) return
+                      if ("bar" in target) {
+                        var nextBar = firstParty ? root.host : root.host.pluginBarApiFor(childId, childId, true)
+                        if (target.bar !== nextBar) target.bar = nextBar
+                      }
+                      if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
+                      var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
+                      if ("settings" in target) target.settings = childSettings
                     }
-                    if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
-                    var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
-                    if ("settings" in target) target.settings = childSettings
+
+                    onLoaded: syncProperties()
+
+                    Connections {
+                      target: root
+                      function onHostChanged() { nativeWideWidgetLoader.syncProperties() }
+                      function onOpenedChanged() {
+                        if (root.opened) nativeWideWidgetLoader.syncProperties()
+                      }
+                    }
                   }
                 }
 
-                // Fallback / Edit view for wide widget
+                // Fallback / Edit / Idle view for wide widget
                 RowLayout {
-                  visible: root.editingMode || nativeWideWidgetLoader.status !== Loader.Ready || !nativeWideWidgetLoader.item
+                  visible: !itemReady || root.editingMode
                   anchors.fill: parent
                   anchors.leftMargin: Style.space(12)
                   anchors.rightMargin: Style.space(12)
@@ -922,12 +944,12 @@ Panel {
               MouseArea {
                 id: wideMouseArea
                 anchors.fill: parent
-                enabled: root.editingMode || nativeWideWidgetLoader.status !== Loader.Ready || !nativeWideWidgetLoader.item
+                enabled: root.editingMode || !itemReady
                 cursorShape: root.editingMode ? Qt.PointingHandCursor : Qt.PointingHandCursor
                 onClicked: {
                   if (root.editingMode) {
                     root.restoreToBar(modelData.id)
-                  } else if (!nativeWideWidgetLoader.item) {
+                  } else if (!itemReady) {
                     root.launchPlugin(modelData.id)
                   }
                 }
