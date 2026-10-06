@@ -136,9 +136,16 @@ def reorder_items(new_items_json):
     except Exception as e:
         print(f"Error reordering items: {e}", file=sys.stderr)
 
+def set_header_collapsed(collapsed_str):
+    collapsed = str(collapsed_str).lower() in ["1", "true", "yes"]
+    drawer_data = load_json(DRAWER_CONFIG, {"id": "evcode.drawer", "items": []})
+    drawer_data["headerCollapsed"] = collapsed
+    save_json(DRAWER_CONFIG, drawer_data)
+    print(f"Set headerCollapsed to {collapsed}")
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: drawer-helper <list-bar-items|list-drawer-items|hide-from-bar|restore-to-bar|reorder-items> [args...]")
+        print("Usage: drawer-helper <list-bar-items|list-drawer-items|hide-from-bar|restore-to-bar|reorder-items|set-header-collapsed> [args...]")
         sys.exit(1)
     cmd = sys.argv[1]
     if cmd == "list-bar-items":
@@ -151,6 +158,8 @@ def main():
         restore_to_bar(sys.argv[2])
     elif cmd == "reorder-items" and len(sys.argv) >= 3:
         reorder_items(sys.argv[2])
+    elif cmd == "set-header-collapsed" and len(sys.argv) >= 3:
+        set_header_collapsed(sys.argv[2])
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

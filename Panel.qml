@@ -25,6 +25,7 @@ Panel {
   property var barWidgetsList: []
   property bool addingMode: false
   property bool editingMode: false
+  property bool headerCollapsed: false
   property string hoveredPluginName: ""
 
   property bool barDropActive: false
@@ -68,6 +69,9 @@ Panel {
       } else {
         root.rawDrawerItemIds = []
       }
+      if (cfg && typeof cfg.headerCollapsed === "boolean") {
+        root.headerCollapsed = cfg.headerCollapsed
+      }
       root.activeDrawerItems = DrawerModel.getActiveItemList(root.rawDrawerItemIds, root.discoveredMap)
     }
     onLoadFailed: {
@@ -75,6 +79,12 @@ Panel {
       root.activeDrawerItems = []
     }
     onFileChanged: reload()
+  }
+
+  function toggleHeaderCollapsed() {
+    root.headerCollapsed = !root.headerCollapsed
+    barActionProc.command = [root.helperBin, "set-header-collapsed", root.headerCollapsed ? "true" : "false"]
+    barActionProc.running = true
   }
 
   onAddingModeChanged: {
@@ -353,7 +363,7 @@ Panel {
     anchorItem: button
     open: root.opened
     suspendDismiss: root.childPopoutOpen
-    contentWidth: root.addingMode ? Style.space(340) : Math.max(Style.space(260), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32))
+    contentWidth: root.addingMode ? Style.space(340) : (root.headerCollapsed ? Math.max(Style.space(160), (Math.min(5, Math.max(1, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)) : Math.max(Style.space(260), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)))
     contentHeight: mainColumn.implicitHeight
     onDismissed: {
       if (!root.childPopoutOpen) root.close()
@@ -376,11 +386,50 @@ Panel {
     ColumnLayout {
       id: mainColumn
       anchors.fill: parent
-      spacing: Style.space(12)
+      spacing: root.headerCollapsed && !root.addingMode ? Style.space(4) : Style.space(12)
 
-      // HEADER
+      // MINI EXPAND HANDLE (When header is collapsed in minimalist view)
       RowLayout {
         Layout.fillWidth: true
+        visible: root.headerCollapsed && !root.addingMode
+
+        Item { Layout.fillWidth: true }
+
+        BorderSurface {
+          implicitWidth: Style.space(32)
+          implicitHeight: Style.space(16)
+          radius: Style.cornerRadius > 0 ? Math.min(Style.cornerRadius, 4) : 4
+          color: miniExpandHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent"
+          borderSpec: miniExpandHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none
+          opacity: miniExpandHover.hovered ? 1.0 : 0.45
+
+          Behavior on opacity { NumberAnimation { duration: 120 } }
+          Behavior on color { ColorAnimation { duration: 120 } }
+
+          HoverHandler { id: miniExpandHover }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.toggleHeaderCollapsed()
+          }
+
+          Text {
+            anchors.centerIn: parent
+            text: "\uf078"
+            color: miniExpandHover.hovered ? Color.accent : Color.foreground
+            font.family: Style.font.family
+            font.pixelSize: Math.round(Style.font.caption * 0.85)
+          }
+        }
+
+        Item { Layout.fillWidth: true }
+      }
+
+      // FULL HEADER
+      RowLayout {
+        Layout.fillWidth: true
+        visible: !root.headerCollapsed || root.addingMode
         spacing: Style.space(8)
 
         // Back button if in adding mode
@@ -435,6 +484,14 @@ Panel {
           }
         }
 
+        // Collapse Header Button (Minimalist toggle)
+        Button {
+          visible: !root.addingMode
+          iconText: "\uf077"
+          tooltipText: "Hide header (Minimalist view)"
+          onClicked: root.toggleHeaderCollapsed()
+        }
+
         Button {
           iconText: "\uf00d"
           tooltipText: "Close (Esc)"
@@ -444,6 +501,7 @@ Panel {
 
       PanelSeparator {
         Layout.fillWidth: true
+        visible: !root.headerCollapsed || root.addingMode
       }
 
       // ── MAIN VIEW: UNIFIED DRAWER ICONS WITH NATIVE WIDGET HOSTING & DRAG-REORDER ──
