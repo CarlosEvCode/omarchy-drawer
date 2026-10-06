@@ -57,8 +57,7 @@ var KNOWN_PLUGINS_MAP = {
     name: "Readout",
     icon: "󰘚",
     entryPoint: "Panel.qml",
-    ipcTarget: "readout",
-    isWide: true
+    ipcTarget: "readout"
   },
   "omarchy.agents": {
     id: "omarchy.agents",
@@ -217,7 +216,7 @@ function resolveItemMetadata(pluginId, manifest) {
   }
   if (!isWide && known.isWide === true) isWide = true;
   if (!isWide) {
-    var wideList = ["ajkulundu.mediaplusplus", "omarchy.media", "omarchy.active-window", "omarchy.workspaces", "io.github.sudoapwh.readout"];
+    var wideList = ["ajkulundu.mediaplusplus", "omarchy.media", "omarchy.active-window", "omarchy.workspaces"];
     if (wideList.indexOf(pluginId) !== -1) isWide = true;
   }
 
