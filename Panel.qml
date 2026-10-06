@@ -297,6 +297,7 @@ Panel {
     function list(): string { return JSON.stringify(root.rawDrawerItemIds) }
     function add(pluginId: string): void { root.hideFromBarAndReturn(pluginId) }
     function remove(pluginId: string): void { root.restoreToBar(pluginId) }
+    function launch(pluginId: string): void { root.launchPlugin(pluginId) }
   }
 
   onOpenedChanged: {

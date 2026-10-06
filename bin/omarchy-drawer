@@ -11,13 +11,12 @@ usage() {
 Usage: omarchy-drawer [COMMAND] [ARGS]
 
 Commands:
-  toggle                   Toggle the drawer open/closed state
-  open                     Open the drawer
-  close                    Close the drawer
-  list                     List items currently inside the drawer
-  bar-items                List items currently on the Omarchy status bar
-  add <plugin_id>          Add a plugin into the drawer
-  remove <plugin_id>       Remove a plugin from the drawer
+  toggle [plugin_id]       Toggle drawer open/closed, or launch/toggle a specific plugin
+  open                     Open the drawer panel
+  close                    Close the drawer panel
+  list                     List plugins currently inside the drawer
+  bar-items                List widgets currently on the Omarchy status bar
+  launch <plugin_id>       Launch/toggle a specific plugin inside the drawer
   hide-from-bar <id>       Hide widget from top bar and move it into drawer
   restore-to-bar <id>      Restore widget from drawer back to top bar
   settings                 Open the drawer settings popup
@@ -29,12 +28,16 @@ cmd="${1:-toggle}"
 
 case "$cmd" in
   toggle)
-    omarchy-shell "$TARGET" toggle
+    if [[ -n "${2:-}" ]]; then
+      omarchy-shell "$TARGET" launch "$2"
+    else
+      omarchy-shell "$TARGET" toggle
+    fi
     ;;
-  open)
+  open|show)
     omarchy-shell "$TARGET" open
     ;;
-  close)
+  close|hide)
     omarchy-shell "$TARGET" close
     ;;
   list)
@@ -43,25 +46,21 @@ case "$cmd" in
   bar-items)
     "$HELPER" list-bar-items
     ;;
-  add)
+  launch|open-plugin)
     [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
-    omarchy-shell "$TARGET" add "$2"
+    omarchy-shell "$TARGET" launch "$2"
     ;;
-  remove)
-    [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
-    omarchy-shell "$TARGET" remove "$2"
-    ;;
-  hide-from-bar)
+  add|hide-from-bar)
     [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
     "$HELPER" hide-from-bar "$2"
     omarchy-shell "$TARGET" add "$2"
     ;;
-  restore-to-bar)
+  remove|restore-to-bar)
     [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
     "$HELPER" restore-to-bar "$2"
     omarchy-shell "$TARGET" remove "$2"
     ;;
-  settings)
+  settings|manage)
     omarchy-shell "$TARGET" manage
     ;;
   -h|--help|help)
