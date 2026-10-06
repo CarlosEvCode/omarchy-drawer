@@ -17,9 +17,8 @@ Commands:
   list                     List plugins currently inside the drawer
   bar-items                List widgets currently on the Omarchy status bar
   launch <plugin_id>       Launch/toggle a specific plugin inside the drawer
-  hide-from-bar <id>       Hide widget from top bar and move it into drawer
-  restore-to-bar <id>      Restore widget from drawer back to top bar
-  settings                 Open the drawer settings popup
+  add <plugin_id>          Hide widget from top bar and move it into drawer
+  remove <plugin_id>       Restore widget from drawer back to top bar
   help, -h, --help         Show this message
 EOF
 }
@@ -59,9 +58,6 @@ case "$cmd" in
     [[ -n "${2:-}" ]] || { echo "Error: Missing plugin_id" >&2; exit 1; }
     "$HELPER" restore-to-bar "$2"
     omarchy-shell "$TARGET" remove "$2"
-    ;;
-  settings|manage)
-    omarchy-shell "$TARGET" manage
     ;;
   -h|--help|help)
     usage
