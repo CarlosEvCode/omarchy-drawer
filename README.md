@@ -36,38 +36,32 @@ A native status bar widget and collapsible popout dock for the [Omarchy](https:/
 
 ## Installation
 
-### Via Omarchy Plugin Manager
+### Standard Installation (Single Command)
+
+Install and enable Omarchy Drawer instantly with zero extra setup:
 
 ```bash
 omarchy plugin add https://github.com/CarlosEvCode/omarchy-drawer.git --enable
 omarchy restart shell
 ```
 
-> **Note:** Running `./install.sh` after adding ensures the `omarchy-drawer` CLI tool is symlinked into `~/.local/bin`.
+### Optional: Global CLI Helper (`omarchy-drawer`)
 
-### Manual / Local Installation
-
-Clone the repository and run the installer:
+If you want to control the drawer from terminal scripts, IPC or custom keybindings via the `omarchy-drawer` command, you can optionally run the installer to link the binary to `~/.local/bin`:
 
 ```bash
-git clone https://github.com/CarlosEvCode/omarchy-drawer.git
-cd omarchy-drawer
+cd ~/.config/omarchy/plugins/evcode.drawer
 chmod +x install.sh
 ./install.sh
 ```
 
-The script will automatically:
-1. Link the plugin into `~/.config/omarchy/plugins/evcode.drawer`.
-2. Link the CLI helper into `~/.local/bin/omarchy-drawer`.
-3. Register and enable the plugin in Omarchy Shell.
-4. Reload the shell.
-
 ### Uninstallation
 
-To completely remove the plugin and CLI symlinks:
+To disable or remove the plugin:
 
 ```bash
-./install.sh --uninstall
+omarchy plugin disable evcode.drawer
+# Or run ./install.sh --uninstall to also clean up CLI symlinks
 ```
 
 ---

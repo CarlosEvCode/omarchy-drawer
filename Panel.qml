@@ -15,7 +15,11 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  readonly property string helperBin: Quickshell.env("HOME") + "/.local/bin/drawer-helper"
+  readonly property string pluginDir: Quickshell.env("HOME") + "/.config/omarchy/plugins/evcode.drawer"
+  readonly property string helperBin: {
+    var localPath = pluginDir + "/bin/drawer-helper"
+    return localPath
+  }
 
   // State
   property var rawDrawerItemIds: []
