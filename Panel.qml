@@ -77,16 +77,21 @@ Panel {
     onFileChanged: reload()
   }
 
-  function reloadAllData() {
-    drawerConfigFile.reload()
-    if (root.addingMode) {
+  onAddingModeChanged: {
+    if (addingMode) {
       listBarProc.running = false
       listBarProc.running = true
-    }
-    if (root.discoveredPlugins.length === 0) {
       scanManifestsProc.running = false
       scanManifestsProc.running = true
     }
+  }
+
+  function reloadAllData() {
+    drawerConfigFile.reload()
+    listBarProc.running = false
+    listBarProc.running = true
+    scanManifestsProc.running = false
+    scanManifestsProc.running = true
   }
 
   function saveReorder(newIds) {
