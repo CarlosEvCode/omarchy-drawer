@@ -34,6 +34,8 @@ Panel {
   property bool cardDropActive: false
   property int draggingIndex: -1
   property int dropTargetIndex: -1
+  property int draggingWideIndex: -1
+  property int dropTargetWideIndex: -1
 
   // Spring-Loaded Timer (OmaSafe pattern)
   Timer {
@@ -636,9 +638,13 @@ Panel {
                   : (isDropTarget || tileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
                 scale: isDragging ? 1.15 : (isDropTarget ? 1.08 : 1.0)
+                opacity: isDragging ? 0.85 : 1.0
 
                 Behavior on scale {
-                  NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                  NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                }
+                Behavior on opacity {
+                  NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                 }
                 Behavior on color {
                   ColorAnimation { duration: 120 }
@@ -850,11 +856,15 @@ Panel {
               }
               readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
+              readonly property bool isDragging: root.draggingWideIndex === index
+              readonly property bool isDropTarget: root.dropTargetWideIndex === index && root.draggingWideIndex !== index
+
               readonly property Item activeItem: nativeWideWidgetLoader.item
               readonly property bool itemReady: !root.editingMode && nativeWideWidgetLoader.status === Loader.Ready && !!nativeWideWidgetLoader.item && nativeWideWidgetLoader.item.visible
 
               Layout.fillWidth: true
               implicitHeight: Math.max(Style.space(42), nativeWideWidgetLoader.item && nativeWideWidgetLoader.item.implicitHeight > 0 ? (nativeWideWidgetLoader.item.implicitHeight + Style.space(8)) : Style.space(42))
+              z: isDragging ? 1000 : (wideTileHover.hovered ? 100 : 1)
 
               Component.onCompleted: {
                 root.registerChild(wideItemDelegate)
@@ -865,11 +875,20 @@ Panel {
               BorderSurface {
                 anchors.fill: parent
                 radius: Style.cornerRadius
-                color: wideTileHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent"
+                color: isDragging ? Qt.alpha(Color.accent, 0.25) : (wideTileHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
                 borderSpec: root.editingMode
-                  ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
-                  : (wideTileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                  ? (isDragging || isDropTarget ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.controlSpec("urgent", Color.urgent, Color.urgent))
+                  : (isDropTarget || wideTileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
+                scale: isDragging ? 1.04 : (isDropTarget ? 1.02 : 1.0)
+                opacity: isDragging ? 0.88 : 1.0
+
+                Behavior on scale {
+                  NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                }
+                Behavior on opacity {
+                  NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                }
                 Behavior on color {
                   ColorAnimation { duration: 120 }
                 }
@@ -920,6 +939,14 @@ Panel {
                   spacing: Style.space(10)
 
                   Text {
+                    visible: root.editingMode
+                    text: "\uf0c9"
+                    color: (isDragging || isDropTarget) ? Color.accent : Color.muted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  Text {
                     text: modelData.icon || "\uf001"
                     color: Color.accent
                     font.family: Style.font.family
@@ -956,8 +983,56 @@ Panel {
                 id: wideMouseArea
                 anchors.fill: parent
                 enabled: root.editingMode || !itemReady
-                cursorShape: root.editingMode ? Qt.PointingHandCursor : Qt.PointingHandCursor
+                cursorShape: root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor
+
+                property real pressX: 0
+                property real pressY: 0
+                property bool hasMoved: false
+
+                onPressed: function(mouse) {
+                  pressX = mouse.x
+                  pressY = mouse.y
+                  hasMoved = false
+                }
+
+                onPositionChanged: function(mouse) {
+                  if (root.editingMode && (mouse.buttons & Qt.LeftButton)) {
+                    var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
+                    if (dist > 6) {
+                      hasMoved = true
+                      root.draggingWideIndex = index
+
+                      var globalPos = mapToItem(wideWidgetsCol, mouse.x, mouse.y)
+                      var child = wideWidgetsCol.childAt(globalPos.x, globalPos.y)
+                      if (child && child !== wideItemDelegate) {
+                        for (var k = 0; k < wideItemsRepeater.count; k++) {
+                          if (wideItemsRepeater.itemAt(k) === child) {
+                            root.dropTargetWideIndex = k
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+
+                onReleased: function(mouse) {
+                  if (hasMoved && root.draggingWideIndex >= 0 && root.dropTargetWideIndex >= 0) {
+                    root.reorderWideItem(root.draggingWideIndex, root.dropTargetWideIndex)
+                  }
+                  root.draggingWideIndex = -1
+                  root.dropTargetWideIndex = -1
+                  hasMoved = false
+                }
+
+                onCanceled: {
+                  root.draggingWideIndex = -1
+                  root.dropTargetWideIndex = -1
+                  hasMoved = false
+                }
+
                 onClicked: {
+                  if (hasMoved) return
                   if (root.editingMode) {
                     root.restoreToBar(modelData.id)
                   } else if (!itemReady) {
