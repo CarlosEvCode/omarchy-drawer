@@ -96,14 +96,15 @@ cat <<EOF
 ✨ Omarchy Drawer installed successfully!
 
 Commands available in terminal:
-  omarchy-drawer toggle
+  omarchy-drawer toggle [plugin_id]
   omarchy-drawer list
   omarchy-drawer bar-items
-  omarchy-drawer hide-from-bar <plugin_id>
-  omarchy-drawer restore-to-bar <plugin_id>
-  omarchy-drawer settings
+  omarchy-drawer add <plugin_id>
+  omarchy-drawer remove <plugin_id>
 
 GUI:
-  - Hover or click the Drawer chevron on your bar to reveal hidden plugins.
-  - Right-click the Drawer chevron to open the Manager and choose which bar widgets to hide/show.
+  - Left-click the Drawer icon on your bar to open.
+  - Click '+' in the header to add widgets from the top bar.
+  - Click 'Edit' in the header to reorder tiles or remove items.
+  - Click '▲' / '▼' to toggle the minimalist header view.
 EOF
