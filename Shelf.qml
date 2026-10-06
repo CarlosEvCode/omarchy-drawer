@@ -86,12 +86,17 @@ PanelWindow {
     height: shelf.screen ? shelf.screen.height : 0
   }
 
+  property var tileDropTarget: null
+  property int tileDragIndex: -1
+  property point tileDragPoint: Qt.point(0, 0)
+  property var tileDragItem: null
+
   MouseArea {
     id: dismissArea
     anchors.fill: parent
-    enabled: shelf.open && !shelf.suspendDismiss
+    enabled: shelf.open && !shelf.suspendDismiss && shelf.tileDragIndex < 0
     onClicked: {
-      if (!shelf.suspendDismiss) shelf.dismissed()
+      if (!shelf.suspendDismiss && shelf.tileDragIndex < 0) shelf.dismissed()
     }
   }
 
@@ -100,9 +105,9 @@ PanelWindow {
   }
 
   HyprlandFocusGrab {
-    active: shelf.open && shelf.clickDismiss && !shelf.suspendDismiss
+    active: shelf.open && shelf.clickDismiss && !shelf.suspendDismiss && shelf.tileDragIndex < 0
     windows: shelf.barWindow ? [shelf, shelf.barWindow] : [shelf]
-    onCleared: if (!shelf.suspendDismiss) shelf.dismissed()
+    onCleared: if (!shelf.suspendDismiss && shelf.tileDragIndex < 0) shelf.dismissed()
   }
 
   // mapToItem is a one-shot; the watcher makes the card follow the button
@@ -117,6 +122,67 @@ PanelWindow {
     anchorWatcher.transform
     if (!anchorItem || !barWindow) return Qt.point(0, 0)
     return anchorItem.mapToItem(barWindow.contentItem, 0, 0)
+  }
+
+  // Insertion marker drawn over the bar while a tile is dragged onto it
+  Rectangle {
+    readonly property var target: shelf.tileDropTarget
+    readonly property point at: target && target.kind === "bar"
+      ? shelf.mapFromItem(null, target.x, target.y) : Qt.point(0, 0)
+    visible: shelf.tileDragIndex >= 0 && !!target && target.kind === "bar"
+    z: 10000
+    color: Color.accent
+    width: target && target.vertical ? target.length : Math.max(2, Style.space(2))
+    height: target && target.vertical ? Math.max(2, Style.space(2)) : (target ? target.length : 0)
+    x: target && target.vertical ? at.x : at.x - width / 2
+    y: target && target.vertical ? at.y - height / 2 : at.y
+    radius: 1
+  }
+
+  // Drag ghost floating under cursor
+  Rectangle {
+    readonly property point at: shelf.tileDragPoint
+    readonly property var item: shelf.tileDragItem
+    readonly property bool leaving: !!shelf.tileDropTarget && shelf.tileDropTarget.kind !== "compactTile" && shelf.tileDropTarget.kind !== "wideTile"
+    visible: shelf.tileDragIndex >= 0 && !!item
+    z: 10001
+    x: at.x + Style.space(14)
+    y: at.y + Style.space(18)
+    width: ghostRow.implicitWidth + Style.space(16)
+    height: Style.space(34)
+    radius: Style.cornerRadius
+    color: Color.popups.background
+    border.width: Math.max(1, Style.space(1))
+    border.color: Color.accent
+    opacity: 0.95
+
+    Row {
+      id: ghostRow
+      anchors.centerIn: parent
+      spacing: Style.space(8)
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: item ? (item.icon || "\uf013") : "\uf013"
+        color: Color.accent
+        font.family: shelf.host ? shelf.host.fontFamily : Style.font.family
+        font.pixelSize: Style.font.icon
+      }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: {
+          if (!item) return ""
+          var name = item.name || item.id
+          if (!leaving) return name
+          return shelf.tileDropTarget && shelf.tileDropTarget.kind === "bar" ? (name + "  →  bar") : (name + "  →  restore")
+        }
+        color: Color.popups.text || Color.foreground
+        font.family: shelf.host ? shelf.host.fontFamily : Style.font.family
+        font.pixelSize: Style.font.bodySmall
+        font.bold: true
+      }
+    }
   }
 
   BorderSurface {

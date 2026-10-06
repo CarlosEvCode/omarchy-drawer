@@ -37,7 +37,17 @@ Panel {
   property int draggingWideIndex: -1
   property int dropTargetWideIndex: -1
 
+  property int tileDragIndex: -1
+  property string tileDragType: "" // "compact" or "wide"
+  property var tileDragItem: null
+  property point tileDragPoint: Qt.point(0, 0)
+  property var tileDropTarget: null
+
   function resetDragState() {
+    tileDragIndex = -1
+    tileDragType = ""
+    tileDragItem = null
+    tileDropTarget = null
     draggingIndex = -1
     dropTargetIndex = -1
     draggingWideIndex = -1
@@ -402,6 +412,145 @@ Panel {
     onTriggered: root.collectBarSlots()
   }
 
+  // ── DRAGGING TILES OUT OF DRAWER ONTO BAR / REORDERING ──
+  function barGeometry() {
+    var window = button.QsWindow.window
+    var position = root.bar ? root.bar.position : (root.host ? root.host.position : "top")
+    var vertical = position === "left" || position === "right"
+    var screenW = shelf.width
+    var screenH = shelf.height
+    var barW = window ? window.width : screenW
+    var barH = window ? window.height : (vertical ? screenH : Style.space(36))
+    var ox = position === "right" ? screenW - barW : 0
+    var oy = position === "bottom" ? screenH - barH : 0
+    return { window: window, position: position, vertical: vertical, x: ox, y: oy, width: barW, height: barH }
+  }
+
+  function barDropAt(scene) {
+    var geo = root.barGeometry()
+    if (!geo.window) return null
+    var inBar = scene.x >= geo.x && scene.x <= geo.x + geo.width
+      && scene.y >= geo.y && scene.y <= geo.y + geo.height
+    if (!inBar) return null
+
+    var axis = geo.vertical ? scene.y - geo.y : scene.x - geo.x
+    var best = null
+    var bestDistance = Infinity
+    for (var i = 0; i < root.barSlots.length; i++) {
+      var slot = root.barSlots[i]
+      try {
+        if (!slot || !slot.moduleName || !slot.visible || slot.width <= 0 || slot.height <= 0) continue
+        if (root.bar && typeof root.bar.targetBelongsToWindow === "function"
+            && !root.bar.targetBelongsToWindow(slot, geo.window)) continue
+        var pos = slot.mapToItem(null, 0, 0)
+        var start = geo.vertical ? pos.y : pos.x
+        var size = geo.vertical ? slot.height : slot.width
+        var before = Math.abs(axis - start)
+        var after = Math.abs(axis - (start + size))
+        var distance = Math.min(before, after)
+        if (distance < bestDistance) {
+          bestDistance = distance
+          best = {
+            kind: "bar",
+            anchor: String(slot.moduleName),
+            after: after < before,
+            along: (after < before ? start + size : start),
+            cross: geo.vertical ? pos.x : pos.y,
+            length: geo.vertical ? slot.width : slot.height
+          }
+        }
+      } catch (e) {
+      }
+    }
+    if (!best) return { kind: "outside" }
+    best.x = geo.vertical ? geo.x + best.cross : geo.x + best.along
+    best.y = geo.vertical ? geo.y + best.along : geo.y + best.cross
+    best.vertical = geo.vertical
+    return best
+  }
+
+  function beginTileDrag(index, type, item) {
+    root.tileDragIndex = index
+    root.tileDragType = type
+    root.tileDragItem = item
+    root.tileDropTarget = null
+    root.collectBarSlots()
+  }
+
+  function updateTileDrag(scene) {
+    root.tileDragPoint = scene
+    var bar = root.barDropAt(scene)
+    if (bar) {
+      root.tileDropTarget = bar
+      return
+    }
+    // Check if over another compact tile
+    if (root.tileDragType === "compact" && itemsGrid.visible) {
+      var inGrid = itemsGrid.mapFromItem(null, scene.x, scene.y)
+      var child = itemsGrid.childAt(inGrid.x, inGrid.y)
+      if (child && ("index" in child) && child.index !== undefined) {
+        root.tileDropTarget = { kind: "compactTile", index: child.index }
+        return
+      }
+    }
+    // Check if over another wide widget
+    if (root.tileDragType === "wide" && wideWidgetsCol.visible) {
+      var inCol = wideWidgetsCol.mapFromItem(null, scene.x, scene.y)
+      var wideChild = wideWidgetsCol.childAt(inCol.x, inCol.y)
+      if (wideChild && ("index" in wideChild) && wideChild.index !== undefined) {
+        root.tileDropTarget = { kind: "wideTile", index: wideChild.index }
+        return
+      }
+    }
+    var inCard = mainColumn.mapFromItem(null, scene.x, scene.y)
+    var isInsideCard = inCard.x >= -Style.space(16) && inCard.x <= mainColumn.width + Style.space(16)
+      && inCard.y >= -Style.space(16) && inCard.y <= mainColumn.height + Style.space(16)
+    root.tileDropTarget = isInsideCard ? null : { kind: "outside" }
+  }
+
+  function finishTileDrag() {
+    var index = root.tileDragIndex
+    var type = root.tileDragType
+    var item = root.tileDragItem
+    var target = root.tileDropTarget
+
+    root.tileDragIndex = -1
+    root.tileDragType = ""
+    root.tileDragItem = null
+    root.tileDropTarget = null
+
+    if (!item || !target) return
+    var id = String(item.id || item)
+
+    if (target.kind === "compactTile" && type === "compact") {
+      if (target.index !== index) root.reorderCompactItem(index, target.index)
+      return
+    }
+    if (target.kind === "wideTile" && type === "wide") {
+      if (target.index !== index) root.reorderWideItem(index, target.index)
+      return
+    }
+    if (target.kind === "bar") {
+      root.restoreToBarWithAnchor(id, target.anchor, target.after ? "after" : "before")
+    } else if (target.kind === "outside") {
+      root.restoreToBar(id)
+    }
+    if (root.rawDrawerItemIds.length <= 1) root.close()
+  }
+
+  function cancelTileDrag() {
+    root.tileDragIndex = -1
+    root.tileDragType = ""
+    root.tileDragItem = null
+    root.tileDropTarget = null
+  }
+
+  function restoreToBarWithAnchor(pluginId, anchorId, side) {
+    if (!pluginId) return
+    barActionProc.command = [root.helperBin, "restore-to-bar", pluginId, anchorId || "", side || "before"]
+    barActionProc.running = true
+  }
+
   Connections {
     target: root.bar
     ignoreUnknownSignals: true
@@ -554,7 +703,11 @@ Panel {
     host: root.host
     anchorItem: button
     open: root.opened
-    suspendDismiss: root.childPopoutOpen
+    suspendDismiss: root.childPopoutOpen || root.tileDragIndex >= 0
+    tileDropTarget: root.tileDropTarget
+    tileDragIndex: root.tileDragIndex
+    tileDragPoint: root.tileDragPoint
+    tileDragItem: root.tileDragItem
     padding: Style.spacing.sm
     readonly property real calcGridWidth: {
       var count = root.compactDrawerItems.length
@@ -568,7 +721,7 @@ Panel {
           : (root.headerCollapsed ? Math.max(Style.space(120), calcGridWidth) : Math.max(Style.space(250), calcGridWidth)))
     contentHeight: mainColumn.implicitHeight
     onDismissed: {
-      if (!root.childPopoutOpen) root.close()
+      if (!root.childPopoutOpen && root.tileDragIndex < 0) root.close()
     }
 
     DropArea {
@@ -788,8 +941,8 @@ Panel {
               }
               readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
-              readonly property bool isDragging: root.editingMode && root.draggingIndex === index
-              readonly property bool isDropTarget: root.editingMode && root.dropTargetIndex === index && root.draggingIndex !== index
+              readonly property bool isDragging: (root.tileDragType === "compact" && root.tileDragIndex === index) || (root.editingMode && root.draggingIndex === index)
+              readonly property bool isDropTarget: (root.tileDropTarget && root.tileDropTarget.kind === "compactTile" && root.tileDropTarget.index === index && root.tileDragIndex !== index) || (root.editingMode && root.dropTargetIndex === index && root.draggingIndex !== index)
 
               readonly property Item activeItem: nativeWidgetLoader.item
 
@@ -808,10 +961,10 @@ Panel {
                   : ((tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible || root.editingMode)) ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
                 borderSpec: root.editingMode
                   ? (isDragging || isDropTarget ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.controlSpec("urgent", Color.urgent, Color.urgent))
-                  : ((tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible)) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                  : ((isDragging || isDropTarget || (tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible))) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
                 scale: isDragging ? 1.15 : (isDropTarget ? 1.08 : 1.0)
-                opacity: isDragging ? 0.85 : 1.0
+                opacity: isDragging ? 0.35 : 1.0
 
                 Behavior on scale {
                   NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -825,8 +978,8 @@ Panel {
 
                 Loader {
                   id: nativeWidgetLoader
-                  anchors.centerIn: parent
                   active: !root.editingMode && registryEntry !== null
+                  anchors.centerIn: parent
                   sourceComponent: registryEntry ? registryEntry.component : null
 
                   function syncProperties() {
@@ -926,7 +1079,7 @@ Panel {
                 id: tileHover
                 enabled: !root.editingMode
                 onHoveredChanged: {
-                  if (hovered && root.draggingIndex < 0) {
+                  if (hovered && root.draggingIndex < 0 && root.tileDragIndex < 0) {
                     root.hoveredPluginName = modelData.name || modelData.id
                   } else if (!hovered && root.hoveredPluginName === (modelData.name || modelData.id)) {
                     root.hoveredPluginName = ""
@@ -937,66 +1090,58 @@ Panel {
               MouseArea {
                 id: editMouseArea
                 anchors.fill: parent
-                enabled: root.editingMode || nativeWidgetLoader.status !== Loader.Ready || !nativeWidgetLoader.item
-                cursorShape: root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor
+                preventStealing: true
+                cursorShape: dragging ? Qt.ClosedHandCursor : (root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor)
 
                 property real pressX: 0
                 property real pressY: 0
-                property bool hasMoved: false
+                property bool dragging: false
+                property bool justDragged: false
 
                 onPressed: function(mouse) {
                   pressX = mouse.x
                   pressY = mouse.y
-                  hasMoved = false
+                  dragging = false
+                  justDragged = false
                 }
 
                 onPositionChanged: function(mouse) {
                   if (mouse.buttons & Qt.LeftButton) {
                     var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
-                    if (dist > 8) {
-                      hasMoved = true
-                      root.draggingIndex = index
-
-                      var globalPos = mapToItem(itemsGrid, mouse.x, mouse.y)
-                      var child = itemsGrid.childAt(globalPos.x, globalPos.y)
-                      if (child && child !== itemDelegate) {
-                        for (var k = 0; k < itemsRepeater.count; k++) {
-                          if (itemsRepeater.itemAt(k) === child) {
-                            root.dropTargetIndex = k
-                            break
-                          }
-                        }
-                      }
+                    if (!dragging && dist >= Style.space(8)) {
+                      dragging = true
+                      root.beginTileDrag(index, "compact", modelData)
+                    }
+                    if (dragging) {
+                      var scenePoint = mapToItem(null, mouse.x, mouse.y)
+                      root.updateTileDrag(scenePoint)
                     }
                   }
                 }
 
                 onReleased: function(mouse) {
-                  if (hasMoved && root.draggingIndex >= 0) {
-                    var inShelf = mapToItem(shelf, mouse.x, mouse.y)
-                    var isOutside = inShelf.x < -30 || inShelf.x > shelf.width + 30 || inShelf.y < -30 || inShelf.y > shelf.height + 30
-                    if (isOutside) {
-                      root.restoreToBar(modelData.id)
-                    } else if (root.dropTargetIndex >= 0 && root.dropTargetIndex !== root.draggingIndex) {
-                      root.reorderCompactItem(root.draggingIndex, root.dropTargetIndex)
-                    }
+                  if (dragging) {
+                    dragging = false
+                    justDragged = true
+                    root.finishTileDrag()
                   }
-                  root.draggingIndex = -1
-                  root.dropTargetIndex = -1
-                  hasMoved = false
                 }
 
                 onCanceled: {
-                  root.draggingIndex = -1
-                  root.dropTargetIndex = -1
-                  hasMoved = false
+                  if (dragging) {
+                    root.cancelTileDrag()
+                    dragging = false
+                  }
                 }
 
-                onClicked: {
-                  if (hasMoved) return
+                onClicked: function(mouse) {
+                  if (justDragged) {
+                    justDragged = false
+                    return
+                  }
                   if (root.editingMode) {
                     root.restoreToBar(modelData.id)
-                  } else if (!nativeWidgetLoader.item) {
+                  } else {
                     root.launchPlugin(modelData.id)
                   }
                 }
@@ -1035,8 +1180,8 @@ Panel {
               }
               readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
-              readonly property bool isDragging: root.editingMode && root.draggingWideIndex === index
-              readonly property bool isDropTarget: root.editingMode && root.dropTargetWideIndex === index && root.draggingWideIndex !== index
+              readonly property bool isDragging: (root.tileDragType === "wide" && root.tileDragIndex === index) || (root.editingMode && root.draggingWideIndex === index)
+              readonly property bool isDropTarget: (root.tileDropTarget && root.tileDropTarget.kind === "wideTile" && root.tileDropTarget.index === index && root.tileDragIndex !== index) || (root.editingMode && root.dropTargetWideIndex === index && root.draggingWideIndex !== index)
 
               readonly property Item activeItem: nativeWideWidgetLoader.item
               readonly property bool itemReady: !root.editingMode && nativeWideWidgetLoader.status === Loader.Ready && !!nativeWideWidgetLoader.item && nativeWideWidgetLoader.item.visible
@@ -1059,10 +1204,10 @@ Panel {
                   : ((wideTileHover.hovered && (!itemReady || root.editingMode)) ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
                 borderSpec: root.editingMode
                   ? (isDragging || isDropTarget ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.controlSpec("urgent", Color.urgent, Color.urgent))
-                  : ((!itemReady && wideTileHover.hovered) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                  : ((isDragging || isDropTarget || (!itemReady && wideTileHover.hovered)) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
                 scale: isDragging ? 1.04 : (isDropTarget ? 1.02 : 1.0)
-                opacity: isDragging ? 0.88 : 1.0
+                opacity: isDragging ? 0.35 : 1.0
 
                 Behavior on scale {
                   NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -1164,65 +1309,58 @@ Panel {
                 id: wideMouseArea
                 anchors.fill: parent
                 enabled: root.editingMode || !itemReady
-                cursorShape: root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor
+                preventStealing: true
+                cursorShape: dragging ? Qt.ClosedHandCursor : (root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor)
 
                 property real pressX: 0
                 property real pressY: 0
-                property bool hasMoved: false
+                property bool dragging: false
+                property bool justDragged: false
 
                 onPressed: function(mouse) {
                   pressX = mouse.x
                   pressY = mouse.y
-                  hasMoved = false
+                  dragging = false
+                  justDragged = false
                 }
 
                 onPositionChanged: function(mouse) {
-                  if (root.editingMode && (mouse.buttons & Qt.LeftButton)) {
+                  if (mouse.buttons & Qt.LeftButton) {
                     var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
-                    if (dist > 6) {
-                      hasMoved = true
-                      root.draggingWideIndex = index
-
-                      var globalPos = mapToItem(wideWidgetsCol, mouse.x, mouse.y)
-                      var child = wideWidgetsCol.childAt(globalPos.x, globalPos.y)
-                      if (child && child !== wideItemDelegate) {
-                        for (var k = 0; k < wideItemsRepeater.count; k++) {
-                          if (wideItemsRepeater.itemAt(k) === child) {
-                            root.dropTargetWideIndex = k
-                            break
-                          }
-                        }
-                      }
+                    if (!dragging && dist >= Style.space(6)) {
+                      dragging = true
+                      root.beginTileDrag(index, "wide", modelData)
+                    }
+                    if (dragging) {
+                      var scenePoint = mapToItem(null, mouse.x, mouse.y)
+                      root.updateTileDrag(scenePoint)
                     }
                   }
                 }
 
                 onReleased: function(mouse) {
-                  if (hasMoved && root.draggingWideIndex >= 0) {
-                    var inShelf = mapToItem(shelf, mouse.x, mouse.y)
-                    var isOutside = inShelf.x < -30 || inShelf.x > shelf.width + 30 || inShelf.y < -30 || inShelf.y > shelf.height + 30
-                    if (isOutside) {
-                      root.restoreToBar(modelData.id)
-                    } else if (root.dropTargetWideIndex >= 0 && root.dropTargetWideIndex !== root.draggingWideIndex) {
-                      root.reorderWideItem(root.draggingWideIndex, root.dropTargetWideIndex)
-                    }
+                  if (dragging) {
+                    dragging = false
+                    justDragged = true
+                    root.finishTileDrag()
                   }
-                  root.draggingWideIndex = -1
-                  root.dropTargetWideIndex = -1
-                  hasMoved = false
                 }
 
                 onCanceled: {
-                  root.draggingWideIndex = -1
-                  root.dropTargetWideIndex = -1
-                  hasMoved = false
+                  if (dragging) {
+                    root.cancelTileDrag()
+                    dragging = false
+                  }
                 }
 
-                onClicked: {
-                  if (hasMoved) return
+                onClicked: function(mouse) {
+                  if (justDragged) {
+                    justDragged = false
+                    return
+                  }
                   if (root.editingMode) {
                     root.restoreToBar(modelData.id)
-                  } else if (!itemReady) {
+                  } else {
                     root.launchPlugin(modelData.id)
                   }
                 }

@@ -96,32 +96,35 @@ def restore_to_bar(plugin_id, anchor_id=None, side="before"):
     bar = shell_data.setdefault("bar", {})
     layout = bar.setdefault("layout", {})
     
-    already_on_bar = any(isinstance(e, dict) and e.get("id") == plugin_id for s in ["left", "center", "right"] for e in layout.get(s, []))
-    if not already_on_bar:
-        placed = False
-        if anchor_id:
-            for s in ["left", "center", "right"]:
-                sec_list = layout.get(s, [])
-                if isinstance(sec_list, list):
-                    for idx, entry in enumerate(sec_list):
-                        if isinstance(entry, dict) and entry.get("id") == anchor_id:
-                            insert_idx = idx + 1 if side == "after" else idx
-                            sec_list.insert(insert_idx, {"id": plugin_id})
-                            placed = True
-                            break
-                if placed:
-                    break
-        if not placed:
-            right_list = layout.setdefault("right", [])
-            drawer_idx = -1
-            for i, entry in enumerate(right_list):
-                if isinstance(entry, dict) and entry.get("id") == "evcode.drawer":
-                    drawer_idx = i
-                    break
-            if drawer_idx != -1:
-                right_list.insert(drawer_idx, {"id": plugin_id})
-            else:
-                right_list.append({"id": plugin_id})
+    # Clean any existing instances from all sections to prevent duplication
+    for s in ["left", "center", "right"]:
+        if s in layout and isinstance(layout[s], list):
+            layout[s] = [e for e in layout[s] if not (isinstance(e, dict) and e.get("id") == plugin_id)]
+
+    placed = False
+    if anchor_id and anchor_id != plugin_id:
+        for s in ["left", "center", "right"]:
+            sec_list = layout.get(s, [])
+            if isinstance(sec_list, list):
+                for idx, entry in enumerate(sec_list):
+                    if isinstance(entry, dict) and entry.get("id") == anchor_id:
+                        insert_idx = idx + 1 if side == "after" else idx
+                        sec_list.insert(insert_idx, {"id": plugin_id})
+                        placed = True
+                        break
+            if placed:
+                break
+    if not placed:
+        right_list = layout.setdefault("right", [])
+        drawer_idx = -1
+        for i, entry in enumerate(right_list):
+            if isinstance(entry, dict) and entry.get("id") == "evcode.drawer":
+                drawer_idx = i
+                break
+        if drawer_idx != -1:
+            right_list.insert(drawer_idx, {"id": plugin_id})
+        else:
+            right_list.append({"id": plugin_id})
 
     # Remove from plugins list if present
     if "plugins" in shell_data and isinstance(shell_data["plugins"], list):
