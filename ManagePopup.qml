@@ -193,7 +193,7 @@ PopupCard {
 
       Text {
         text: "Select any widget on your top bar to hide it and show it inside the Drawer:"
-        color: Color.subtext
+        color: Color.muted
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
@@ -255,7 +255,7 @@ PopupCard {
 
                   Text {
                     text: "Section: " + (modelData.section || "bar") + (meta.description ? " — " + meta.description : "")
-                    color: Color.subtext
+                    color: Color.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight
@@ -284,7 +284,7 @@ PopupCard {
 
       Text {
         text: "Plugins currently inside your Drawer. You can reorder them or restore them to the top bar:"
-        color: Color.subtext
+        color: Color.muted
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
@@ -345,7 +345,7 @@ PopupCard {
 
                   Text {
                     text: meta.description || modelData
-                    color: Color.subtext
+                    color: Color.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight

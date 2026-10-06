@@ -54,11 +54,39 @@ Panel {
     }
   }
 
+  // Instant C++ FileView for drawer.json (0ms startup overhead, zero bash forks)
+  FileView {
+    id: drawerConfigFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/drawer.json"
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var cfg = DrawerModel.parseJsonSafe(text(), null)
+      if (cfg && cfg.items && Array.isArray(cfg.items)) {
+        root.rawDrawerItemIds = cfg.items
+      } else {
+        root.rawDrawerItemIds = []
+      }
+      root.activeDrawerItems = DrawerModel.getActiveItemList(root.rawDrawerItemIds, root.discoveredMap)
+    }
+    onLoadFailed: {
+      root.rawDrawerItemIds = []
+      root.activeDrawerItems = []
+    }
+    onFileChanged: reload()
+  }
+
   function reloadAllData() {
-    loadDrawerConfigProc.running = false
-    loadDrawerConfigProc.running = true
-    listBarProc.running = false
-    listBarProc.running = true
+    drawerConfigFile.reload()
+    if (root.addingMode) {
+      listBarProc.running = false
+      listBarProc.running = true
+    }
+    if (root.discoveredPlugins.length === 0) {
+      scanManifestsProc.running = false
+      scanManifestsProc.running = true
+    }
   }
 
   function saveReorder(newIds) {
@@ -83,10 +111,9 @@ Panel {
     var meta = (discoveredMap && discoveredMap[targetId]) ? discoveredMap[targetId] : DrawerModel.resolveItemMetadata(targetId, null)
     var ipcTarget = meta.ipcTarget || targetId
 
-    // 1. Close drawer panel first so focus handoff is clean
+    // Close drawer panel first so focus handoff is clean
     root.close()
 
-    // 2. Open target plugin smoothly after drawer close
     Qt.callLater(function() {
       if (targetId === "tiertek.tekscan" || ipcTarget === "tekscan") {
         triggerProc.command = ["bash", "-c", "omarchy-shell tekscan toggle 2>/dev/null || omarchy-shell tekscan show 2>/dev/null || true"]
@@ -95,38 +122,12 @@ Panel {
         return
       }
 
-      var handled = false
-      for (var i = 0; i < mountedLoadersRepeater.count; i++) {
-        var loader = mountedLoadersRepeater.itemAt(i)
-        if (loader && loader.modelData === targetId && loader.item) {
-          if (typeof loader.item.open === "function") {
-            loader.item.open()
-            handled = true
-          } else if (typeof loader.item.show === "function") {
-            loader.item.show()
-            handled = true
-          } else if (typeof loader.item.toggle === "function") {
-            loader.item.toggle()
-            handled = true
-          } else if (typeof loader.item.togglePanel === "function") {
-            loader.item.togglePanel()
-            handled = true
-          } else if (loader.item.controller && typeof loader.item.controller.show === "function") {
-            loader.item.controller.show()
-            handled = true
-          }
-          break
-        }
-      }
-
-      if (!handled) {
-        triggerProc.command = [
-          "bash", "-c",
-          "omarchy-shell " + ipcTarget + " open 2>/dev/null || omarchy-shell " + ipcTarget + " show 2>/dev/null || omarchy-shell " + ipcTarget + " toggle 2>/dev/null || omarchy-shell " + targetId + " open 2>/dev/null || omarchy-shell " + targetId + " toggle 2>/dev/null || true"
-        ]
-        triggerProc.running = false
-        triggerProc.running = true
-      }
+      triggerProc.command = [
+        "bash", "-c",
+        "omarchy-shell " + ipcTarget + " open 2>/dev/null || omarchy-shell " + ipcTarget + " show 2>/dev/null || omarchy-shell " + ipcTarget + " toggle 2>/dev/null || omarchy-shell " + targetId + " open 2>/dev/null || omarchy-shell " + targetId + " toggle 2>/dev/null || true"
+      ]
+      triggerProc.running = false
+      triggerProc.running = true
     })
   }
 
@@ -209,34 +210,7 @@ Panel {
       var active = root.host.activePopout
       if (active === root || active === null) return
       if (root.ownsPopout(active)) {
-        // Child opened popout, keep alive
         return
-      }
-    }
-  }
-
-  // Load hidden plugins eagerly in background so their IPC and panels exist
-  Item {
-    id: mountedPluginsHolder
-    visible: false
-    Repeater {
-      id: mountedLoadersRepeater
-      model: root.rawDrawerItemIds
-      delegate: Loader {
-        required property string modelData
-        active: true
-        source: {
-          var userPath = Quickshell.env("HOME") + "/.config/omarchy/plugins/" + modelData + "/"
-          var meta = (root.discoveredMap && root.discoveredMap[modelData]) ? root.discoveredMap[modelData] : DrawerModel.resolveItemMetadata(modelData, null)
-          var entry = meta.entryPoint || "Panel.qml"
-          return Qt.resolvedUrl(userPath + entry)
-        }
-        onLoaded: {
-          if (item) {
-            if ("bar" in item) item.bar = root.bar
-            if ("anchorItem" in item) item.anchorItem = button
-          }
-        }
       }
     }
   }
@@ -256,10 +230,10 @@ Panel {
     }
   }
 
-  // Load bar widgets strictly from shell.json
+  // Load bar widgets strictly on-demand when entering Add mode
   Process {
     id: listBarProc
-    running: true
+    running: false
     command: [root.helperBin, "list-bar-items"]
     stdout: StdioCollector {
       waitForEnd: true
@@ -270,29 +244,10 @@ Panel {
     }
   }
 
-  // Load drawer items strictly from ~/.config/omarchy/drawer.json
-  Process {
-    id: loadDrawerConfigProc
-    running: true
-    command: ["bash", "-c", "[ -f ~/.config/omarchy/drawer.json ] && cat ~/.config/omarchy/drawer.json || echo '{\"items\":[]}'"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var cfg = DrawerModel.parseJsonSafe(text, null)
-        if (cfg && cfg.items && Array.isArray(cfg.items)) {
-          root.rawDrawerItemIds = cfg.items
-        } else {
-          root.rawDrawerItemIds = []
-        }
-        root.activeDrawerItems = DrawerModel.getActiveItemList(root.rawDrawerItemIds, root.discoveredMap)
-      }
-    }
-  }
-
-  // Scan manifests for proper names and icons
+  // Scan manifests for proper names and icons on-demand
   Process {
     id: scanManifestsProc
-    running: true
+    running: false
     command: [
       "bash", "-c",
       "for f in ~/.config/omarchy/plugins/*/manifest.json /usr/share/omarchy/shell/plugins/*/manifest.json; do [ -f \"$f\" ] && cat \"$f\" && echo '---JSON_SPLIT---'; done"
@@ -565,7 +520,7 @@ Panel {
               BorderSurface {
                 anchors.fill: parent
                 radius: Style.cornerRadius
-                color: isDragging ? Qt.alpha(Color.accent, 0.25) : (tileHover.hovered ? Color.subtextBackground : "transparent")
+                color: isDragging ? Qt.alpha(Color.accent, 0.25) : (tileHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
                 borderSpec: root.editingMode
                   ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
                   : (isDropTarget || tileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
@@ -603,7 +558,7 @@ Panel {
                   text: modelData.icon || "\uf013"
                   color: (isDragging || tileHover.hovered || isDropTarget) ? Color.accent : Color.foreground
                   font.family: Style.font.family
-                  font.pixelSize: Style.font.displayMedium
+                  font.pixelSize: Style.font.iconLarge
                   scale: (tileHover.hovered || isDragging) ? 1.15 : 1.0
 
                   Behavior on scale {
@@ -753,7 +708,7 @@ Panel {
 
         Text {
           text: "Select a plugin to move into Drawer:"
-          color: Color.subtext
+          color: Color.muted
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           wrapMode: Text.WordWrap
@@ -783,7 +738,7 @@ Panel {
                 Layout.fillWidth: true
                 implicitHeight: Style.space(40)
                 radius: Style.cornerRadius
-                color: rowHover.containsMouse ? Color.subtextBackground : "transparent"
+                color: rowHover.containsMouse ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent"
 
                 borderSpec: rowHover.containsMouse
                   ? Border.controlSpec("hover", Color.accent, Color.accent)
@@ -823,7 +778,7 @@ Panel {
 
                   Text {
                     text: "\uf067"
-                    color: rowHover.containsMouse ? Color.accent : Color.subtext
+                    color: rowHover.containsMouse ? Color.accent : Color.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                   }
