@@ -48,9 +48,31 @@ PanelWindow {
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
 
+  property bool focusPrimed: false
+
+  Timer {
+    id: focusPrimeTimer
+    interval: 50
+    onTriggered: shelf.focusPrimed = true
+  }
+
+  function beginFocusPrime() {
+    focusPrimed = false
+    if (open && backingWindowVisible) focusPrimeTimer.restart()
+  }
+
+  onOpenChanged: {
+    if (open) beginFocusPrime()
+    else focusPrimed = false
+  }
+
+  onBackingWindowVisibleChanged: beginFocusPrime()
+
   WlrLayershell.namespace: "evcode-drawer"
   WlrLayershell.layer: WlrLayer.Top
-  WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+  WlrLayershell.keyboardFocus: open
+    ? (focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
+    : WlrKeyboardFocus.None
 
   anchors {
     top: barPos === "top" || vertical

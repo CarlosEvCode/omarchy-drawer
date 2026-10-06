@@ -362,6 +362,7 @@ Panel {
     root.addingMode = false
     if (opened) {
       root.reloadAllData()
+      Qt.callLater(function() { mainColumn.forceActiveFocus() })
     } else {
       root.barDropActive = false
       root.cardDropActive = false
@@ -440,6 +441,20 @@ Panel {
       id: mainColumn
       anchors.fill: parent
       spacing: root.headerCollapsed && !root.addingMode ? Style.space(4) : Style.space(12)
+      focus: true
+      Keys.priority: Keys.BeforeItem
+      Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Escape) {
+          if (root.addingMode) {
+            root.addingMode = false
+          } else if (root.editingMode) {
+            root.editingMode = false
+          } else {
+            root.close()
+          }
+          event.accepted = true
+        }
+      }
 
       // MINI EXPAND HANDLE (When header is collapsed in minimalist view)
       RowLayout {
@@ -502,7 +517,7 @@ Panel {
         }
 
         Text {
-          text: root.cardDropActive ? "Drop here" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit (Drag to reorder)" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")))
+          text: root.cardDropActive ? "Drop here" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")))
           color: Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.title
