@@ -402,16 +402,6 @@ Panel {
       var cols = Math.min(5, Math.max(1, count))
       return (cols * Style.space(48)) + ((cols - 1) * Style.space(10))
     }
-    contentWidth: (root.addingMode || root.settingsMode)
-      ? Style.space(340)
-      : (root.wideDrawerItems.length > 0
-          ? Math.max(Style.space(340), calcGridWidth)
-          : (root.headerCollapsed ? Math.max(Style.space(120), calcGridWidth) : Math.max(Style.space(250), calcGridWidth)))
-    contentHeight: mainColumn.implicitHeight
-    onDismissed: {
-      if (!root.childPopoutOpen) root.close()
-    }
-
     contentWidth: root.addingMode
       ? Style.space(340)
       : (root.wideDrawerItems.length > 0
@@ -668,8 +658,6 @@ Panel {
                       if (target.bar !== nextBar) target.bar = nextBar
                     }
                     if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
-                    if ("anchorItem" in target) target.anchorItem = root.resolveAnchorItem(itemDelegate)
-                    if ("hostWidget" in target) target.hostWidget = root
                     var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
                     if ("settings" in target) target.settings = childSettings
                   }
@@ -679,7 +667,6 @@ Panel {
                   Connections {
                     target: root
                     function onHostChanged() { nativeWidgetLoader.syncProperties() }
-                    function onPopoutAnchorChanged() { nativeWidgetLoader.syncProperties() }
                     function onOpenedChanged() {
                       if (root.opened) nativeWidgetLoader.syncProperties()
                     }
@@ -881,7 +868,7 @@ Panel {
                 color: wideTileHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent"
                 borderSpec: root.editingMode
                   ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
-                  : (wideTileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.subtleSpec(Color.surfaceSubtle))
+                  : (wideTileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
                 Behavior on color {
                   ColorAnimation { duration: 120 }
@@ -908,8 +895,6 @@ Panel {
                         if (target.bar !== nextBar) target.bar = nextBar
                       }
                       if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
-                      if ("anchorItem" in target) target.anchorItem = root.resolveAnchorItem(wideItemDelegate)
-                      if ("hostWidget" in target) target.hostWidget = root
                       var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
                       if ("settings" in target) target.settings = childSettings
                     }
@@ -919,7 +904,6 @@ Panel {
                     Connections {
                       target: root
                       function onHostChanged() { nativeWideWidgetLoader.syncProperties() }
-                      function onPopoutAnchorChanged() { nativeWideWidgetLoader.syncProperties() }
                       function onOpenedChanged() {
                         if (root.opened) nativeWideWidgetLoader.syncProperties()
                       }
