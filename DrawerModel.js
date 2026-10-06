@@ -57,7 +57,8 @@ var KNOWN_PLUGINS_MAP = {
     name: "Readout",
     icon: "󰘚",
     entryPoint: "Panel.qml",
-    ipcTarget: "readout"
+    ipcTarget: "readout",
+    isWide: true
   },
   "omarchy.agents": {
     id: "omarchy.agents",
@@ -71,14 +72,16 @@ var KNOWN_PLUGINS_MAP = {
     name: "Media",
     icon: "\uf001",
     entryPoint: "BarWidget.qml",
-    ipcTarget: "media"
+    ipcTarget: "media",
+    isWide: true
   },
   "ajkulundu.mediaplusplus": {
     id: "ajkulundu.mediaplusplus",
     name: "Media++",
     icon: "\uf001",
     entryPoint: "BarWidget.qml",
-    ipcTarget: "mediaplusplus"
+    ipcTarget: "mediaplusplus",
+    isWide: true
   },
   "io.github.mtolhuys.fathom": {
     id: "io.github.mtolhuys.fathom",
@@ -169,14 +172,16 @@ var KNOWN_PLUGINS_MAP = {
     name: "Active Window",
     icon: "\uf2d0",
     entryPoint: "BarWidget.qml",
-    ipcTarget: "active-window"
+    ipcTarget: "active-window",
+    isWide: true
   },
   "omarchy.workspaces": {
     id: "omarchy.workspaces",
     name: "Workspaces",
     icon: "\uf108",
     entryPoint: "BarWidget.qml",
-    ipcTarget: "workspaces"
+    ipcTarget: "workspaces",
+    isWide: true
   },
   "omarchy.menu": {
     id: "omarchy.menu",
@@ -205,13 +210,25 @@ function resolveItemMetadata(pluginId, manifest) {
     || known.entryPoint
     || "Panel.qml";
 
+  var isWide = false;
+  if (manifest) {
+    if (manifest.widgetType === "wide" || manifest.wide === true || manifest.isWide === true) isWide = true;
+    if (manifest.barWidget && (manifest.barWidget.wide === true || manifest.barWidget.isWide === true)) isWide = true;
+  }
+  if (!isWide && known.isWide === true) isWide = true;
+  if (!isWide) {
+    var wideList = ["ajkulundu.mediaplusplus", "omarchy.media", "omarchy.active-window", "omarchy.workspaces", "io.github.sudoapwh.readout"];
+    if (wideList.indexOf(pluginId) !== -1) isWide = true;
+  }
+
   return {
     id: pluginId,
     name: name,
     icon: icon,
     entryPoint: entryPoint,
     ipcTarget: ipcTarget,
-    manifest: manifest || null
+    manifest: manifest || null,
+    isWide: isWide
   };
 }
 

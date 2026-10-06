@@ -22,6 +22,8 @@ Panel {
   property var discoveredPlugins: []
   property var discoveredMap: ({})
   property var activeDrawerItems: DrawerModel.getActiveItemList(rawDrawerItemIds, discoveredMap)
+  readonly property var compactDrawerItems: activeDrawerItems.filter(function(item) { return !item.isWide })
+  readonly property var wideDrawerItems: activeDrawerItems.filter(function(item) { return !!item.isWide })
   property var barWidgetsList: []
   property bool addingMode: false
   property bool editingMode: false
@@ -119,6 +121,38 @@ Panel {
     var item = list.splice(fromIdx, 1)[0]
     list.splice(toIdx, 0, item)
     saveReorder(list)
+  }
+
+  function reorderCompactItem(compactFromIdx, compactToIdx) {
+    if (compactFromIdx === compactToIdx || compactFromIdx < 0 || compactToIdx < 0) return
+    var compactList = [].concat(root.compactDrawerItems)
+    if (compactFromIdx >= compactList.length || compactToIdx >= compactList.length) return
+    var movingId = compactList[compactFromIdx].id
+    var targetId = compactList[compactToIdx].id
+    var rawList = [].concat(root.rawDrawerItemIds)
+    var rawFrom = rawList.indexOf(movingId)
+    var rawTo = rawList.indexOf(targetId)
+    if (rawFrom !== -1 && rawTo !== -1) {
+      var item = rawList.splice(rawFrom, 1)[0]
+      rawList.splice(rawTo, 0, item)
+      saveReorder(rawList)
+    }
+  }
+
+  function reorderWideItem(wideFromIdx, wideToIdx) {
+    if (wideFromIdx === wideToIdx || wideFromIdx < 0 || wideToIdx < 0) return
+    var wideList = [].concat(root.wideDrawerItems)
+    if (wideFromIdx >= wideList.length || wideToIdx >= wideList.length) return
+    var movingId = wideList[wideFromIdx].id
+    var targetId = wideList[wideToIdx].id
+    var rawList = [].concat(root.rawDrawerItemIds)
+    var rawFrom = rawList.indexOf(movingId)
+    var rawTo = rawList.indexOf(targetId)
+    if (rawFrom !== -1 && rawTo !== -1) {
+      var item = rawList.splice(rawFrom, 1)[0]
+      rawList.splice(rawTo, 0, item)
+      saveReorder(rawList)
+    }
   }
 
   function launchPlugin(targetId) {
@@ -364,11 +398,15 @@ Panel {
     open: root.opened
     suspendDismiss: root.childPopoutOpen
     readonly property real calcGridWidth: {
-      var count = root.activeDrawerItems.length
+      var count = root.compactDrawerItems.length
       var cols = Math.min(5, Math.max(1, count))
       return (cols * Style.space(48)) + ((cols - 1) * Style.space(10))
     }
-    contentWidth: root.addingMode ? Style.space(340) : (root.headerCollapsed ? Math.max(Style.space(120), calcGridWidth) : Math.max(Style.space(250), calcGridWidth))
+    contentWidth: root.addingMode
+      ? Style.space(340)
+      : (root.wideDrawerItems.length > 0
+          ? Math.max(Style.space(340), calcGridWidth)
+          : (root.headerCollapsed ? Math.max(Style.space(120), calcGridWidth) : Math.max(Style.space(250), calcGridWidth)))
     contentHeight: mainColumn.implicitHeight
     onDismissed: {
       if (!root.childPopoutOpen) root.close()
@@ -509,7 +547,7 @@ Panel {
         visible: !root.headerCollapsed || root.addingMode
       }
 
-      // ── MAIN VIEW: UNIFIED DRAWER ICONS WITH NATIVE WIDGET HOSTING & DRAG-REORDER ──
+      // ── MAIN VIEW: UNIFIED DRAWER WITH COMPACT GRID & FULL-WIDTH WIDE WIDGETS ──
       ColumnLayout {
         Layout.fillWidth: true
         visible: !root.addingMode
@@ -549,11 +587,11 @@ Panel {
           }
         }
 
-        // Icon Grid
+        // 1. Compact Icon Grid (Top Section)
         Flow {
           id: itemsGrid
-          visible: root.activeDrawerItems.length > 0
-          readonly property int cols: Math.min(5, Math.max(1, root.activeDrawerItems.length))
+          visible: root.compactDrawerItems.length > 0
+          readonly property int cols: Math.min(5, Math.max(1, root.compactDrawerItems.length))
           readonly property real gridWidth: (cols * Style.space(48)) + ((cols - 1) * spacing)
           Layout.preferredWidth: gridWidth
           Layout.alignment: Qt.AlignHCenter
@@ -562,7 +600,7 @@ Panel {
 
           Repeater {
             id: itemsRepeater
-            model: root.activeDrawerItems
+            model: root.compactDrawerItems
 
             delegate: Item {
               id: itemDelegate
@@ -745,7 +783,7 @@ Panel {
 
                 onReleased: function(mouse) {
                   if (hasMoved && root.draggingIndex >= 0 && root.dropTargetIndex >= 0) {
-                    root.reorderItem(root.draggingIndex, root.dropTargetIndex)
+                    root.reorderCompactItem(root.draggingIndex, root.dropTargetIndex)
                   }
                   root.draggingIndex = -1
                   root.dropTargetIndex = -1
@@ -763,6 +801,133 @@ Panel {
                   if (root.editingMode) {
                     root.restoreToBar(modelData.id)
                   } else if (!nativeWidgetLoader.item) {
+                    root.launchPlugin(modelData.id)
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Subtle separator if both compact items and wide widgets are present
+        PanelSeparator {
+          Layout.fillWidth: true
+          visible: root.compactDrawerItems.length > 0 && root.wideDrawerItems.length > 0
+        }
+
+        // 2. Wide Widgets Stack (Bottom Section - Full Width)
+        ColumnLayout {
+          id: wideWidgetsCol
+          visible: root.wideDrawerItems.length > 0
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          Repeater {
+            id: wideItemsRepeater
+            model: root.wideDrawerItems
+
+            delegate: Item {
+              id: wideItemDelegate
+              required property var modelData
+              required property int index
+
+              readonly property string childId: String(modelData.id || modelData)
+              readonly property var registryEntry: {
+                var registry = root.host ? root.host.barWidgetRegistry : null
+                var widgets = registry ? registry.widgets : null
+                return widgets && widgets[childId] ? widgets[childId] : null
+              }
+              readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
+
+              readonly property Item activeItem: nativeWideWidgetLoader.item
+
+              Layout.fillWidth: true
+              implicitHeight: Math.max(Style.space(42), nativeWideWidgetLoader.item ? nativeWideWidgetLoader.item.implicitHeight : Style.space(42))
+
+              Component.onCompleted: root.registerChild(wideItemDelegate)
+              Component.onDestruction: root.unregisterChild(wideItemDelegate)
+
+              BorderSurface {
+                anchors.fill: parent
+                radius: Style.cornerRadius
+                color: wideTileHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent"
+                borderSpec: root.editingMode
+                  ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
+                  : (wideTileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.subtleSpec(Color.surfaceSubtle))
+
+                Behavior on color {
+                  ColorAnimation { duration: 120 }
+                }
+
+                Loader {
+                  id: nativeWideWidgetLoader
+                  anchors.fill: parent
+                  anchors.margins: Style.space(2)
+                  active: !root.editingMode && registryEntry !== null
+                  sourceComponent: registryEntry ? registryEntry.component : null
+                  onLoaded: {
+                    var target = item
+                    if (!target || !root.host) return
+                    if ("bar" in target) {
+                      var nextBar = firstParty ? root.host : root.host.pluginBarApiFor(childId, childId, true)
+                      if (target.bar !== nextBar) target.bar = nextBar
+                    }
+                    if ("moduleName" in target && target.moduleName !== childId) target.moduleName = childId
+                    var childSettings = DrawerModel.childSettings(childId, root.host ? root.host.shell.shellConfig : null)
+                    if ("settings" in target) target.settings = childSettings
+                  }
+                }
+
+                // Fallback / Edit view for wide widget
+                RowLayout {
+                  visible: root.editingMode || nativeWideWidgetLoader.status !== Loader.Ready || !nativeWideWidgetLoader.item
+                  anchors.fill: parent
+                  anchors.leftMargin: Style.space(12)
+                  anchors.rightMargin: Style.space(12)
+                  spacing: Style.space(10)
+
+                  Text {
+                    text: modelData.icon || "\uf001"
+                    color: Color.accent
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.icon
+                  }
+
+                  Text {
+                    text: modelData.name || modelData.id
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                  }
+
+                  Text {
+                    visible: root.editingMode
+                    text: "\uf00d"
+                    color: Color.urgent || "#ff4455"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                  }
+                }
+              }
+
+              HoverHandler {
+                id: wideTileHover
+                enabled: !root.editingMode
+              }
+
+              MouseArea {
+                id: wideMouseArea
+                anchors.fill: parent
+                enabled: root.editingMode || nativeWideWidgetLoader.status !== Loader.Ready || !nativeWideWidgetLoader.item
+                cursorShape: root.editingMode ? Qt.PointingHandCursor : Qt.PointingHandCursor
+                onClicked: {
+                  if (root.editingMode) {
+                    root.restoreToBar(modelData.id)
+                  } else if (!nativeWideWidgetLoader.item) {
                     root.launchPlugin(modelData.id)
                   }
                 }
