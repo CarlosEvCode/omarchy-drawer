@@ -183,6 +183,55 @@ var KNOWN_PLUGINS_MAP = {
     ipcTarget: "workspaces",
     isWide: true
   },
+  "omarchy.bluetooth": {
+    id: "omarchy.bluetooth",
+    name: "Bluetooth",
+    icon: "\uf293",
+    entryPoint: "Panel.qml",
+    ipcTarget: "bluetooth"
+  },
+  "omarchy.network": {
+    id: "omarchy.network",
+    name: "Network",
+    icon: "󰤨",
+    entryPoint: "Panel.qml",
+    ipcTarget: "network"
+  },
+  "omarchy.weather": {
+    id: "omarchy.weather",
+    name: "Weather",
+    icon: "󰖐",
+    entryPoint: "Panel.qml",
+    ipcTarget: "weather"
+  },
+  "omarchy.battery": {
+    id: "omarchy.battery",
+    name: "Battery",
+    icon: "󰁹",
+    entryPoint: "BarWidget.qml",
+    ipcTarget: "battery"
+  },
+  "omarchy.notifications": {
+    id: "omarchy.notifications",
+    name: "Notifications",
+    icon: "󰂚",
+    entryPoint: "BarWidget.qml",
+    ipcTarget: "notifications"
+  },
+  "builtin.notifications": {
+    id: "builtin.notifications",
+    name: "Notifications",
+    icon: "󰂚",
+    entryPoint: "BarWidget.qml",
+    ipcTarget: "notifications"
+  },
+  "io.github.arikisonfire.bar-folder": {
+    id: "io.github.arikisonfire.bar-folder",
+    name: "Bar Folder",
+    icon: "\udb80\ude56",
+    entryPoint: "BarFolder.qml",
+    ipcTarget: "io.github.arikisonfire.bar-folder"
+  },
   "omarchy.menu": {
     id: "omarchy.menu",
     name: "Menu",

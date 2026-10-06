@@ -163,10 +163,17 @@ PanelWindow {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: item ? (item.icon || "\uf013") : "\uf013"
+        text: {
+          if (!item) return "\udb81\udc31"
+          if (item.glyph) return item.glyph
+          if (item.icon && item.icon !== "\uf013") return item.icon
+          var meta = Model.resolveItemMetadata(item.id || item, null)
+          return (meta && meta.icon) ? meta.icon : "\udb81\udc31"
+        }
+        textFormat: Text.PlainText
         color: Color.accent
         font.family: shelf.host ? shelf.host.fontFamily : Style.font.family
-        font.pixelSize: Style.font.icon
+        font.pixelSize: Style.font.iconLarge
       }
 
       Text {
@@ -177,6 +184,7 @@ PanelWindow {
           if (!leaving) return name
           return shelf.tileDropTarget && shelf.tileDropTarget.kind === "bar" ? (name + "  →  bar") : (name + "  →  restore")
         }
+        textFormat: Text.PlainText
         color: Color.popups.text || Color.foreground
         font.family: shelf.host ? shelf.host.fontFamily : Style.font.family
         font.pixelSize: Style.font.bodySmall

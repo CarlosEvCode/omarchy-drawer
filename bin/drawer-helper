@@ -154,6 +154,20 @@ def reorder_items(new_items_json):
     except Exception as e:
         print(f"Error reordering items: {e}", file=sys.stderr)
 
+def list_manifests():
+    import glob
+    out = []
+    paths = glob.glob(str(HOME / ".config/omarchy/plugins/*/manifest.json")) + glob.glob("/usr/share/omarchy/shell/plugins/**/manifest.json", recursive=True)
+    for p in paths:
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                if isinstance(d, dict) and d.get("id"):
+                    out.append(d)
+        except Exception:
+            pass
+    print(json.dumps(out))
+
 def set_header_collapsed(collapsed_str):
     collapsed = str(collapsed_str).lower() in ["1", "true", "yes"]
     drawer_data = load_json(DRAWER_CONFIG, {"id": "evcode.drawer", "items": []})
@@ -163,13 +177,15 @@ def set_header_collapsed(collapsed_str):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: drawer-helper <list-bar-items|list-drawer-items|hide-from-bar|restore-to-bar|reorder-items|set-header-collapsed> [args...]")
+        print("Usage: drawer-helper <list-bar-items|list-drawer-items|list-manifests|hide-from-bar|restore-to-bar|reorder-items|set-header-collapsed> [args...]")
         sys.exit(1)
     cmd = sys.argv[1]
     if cmd == "list-bar-items":
         list_bar_items()
     elif cmd == "list-drawer-items":
         list_drawer_items()
+    elif cmd == "list-manifests":
+        list_manifests()
     elif cmd == "hide-from-bar" and len(sys.argv) >= 3:
         hide_from_bar(sys.argv[2])
     elif cmd == "restore-to-bar" and len(sys.argv) >= 3:

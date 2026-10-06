@@ -273,6 +273,7 @@ Panel {
   Component.onCompleted: {
     Qt.callLater(resolveHost)
     slotScan.restart()
+    scanManifestsProc.running = true
   }
 
   // ── TOP BAR DRAG DETECTION (Drop bar widgets directly onto Drawer icon) ──
@@ -469,10 +470,56 @@ Panel {
     return best
   }
 
-  function beginTileDrag(index, type, item) {
+  function glyphIn(item, depth) {
+    if (!item || depth > 8) return ""
+    try {
+      if (typeof item.text === "string" && item.text) {
+        var trimmed = item.text.trim()
+        if (trimmed.length > 0 && trimmed.length <= 3) return trimmed
+      }
+    } catch (e) {}
+    var kids = item.children
+    if (!kids) return ""
+    for (var i = 0; i < kids.length; i++) {
+      var kid = kids[i]
+      if (!kid || kid.visible === false) continue
+      try {
+        if (typeof kid.text === "string" && kid.font !== undefined) {
+          var t = kid.text.trim()
+          if (t.length > 0 && t.length <= 3) return t
+        }
+      } catch (e) {}
+      var nested = glyphIn(kid, depth + 1)
+      if (nested) return nested
+    }
+    return ""
+  }
+
+  function extractItemGlyph(itemDelegate, modelData) {
+    if (itemDelegate && itemDelegate.activeItem) {
+      var extracted = root.glyphIn(itemDelegate.activeItem, 0)
+      if (extracted) return extracted
+    }
+    if (modelData) {
+      if (modelData.icon && modelData.icon !== "\uf013") return modelData.icon
+      var meta = DrawerModel.resolveItemMetadata(modelData.id || modelData, null)
+      if (meta && meta.icon && meta.icon !== "\uf013") return meta.icon
+    }
+    return "\udb81\udc31"
+  }
+
+  function beginTileDrag(index, type, item, glyph) {
     root.tileDragIndex = index
     root.tileDragType = type
-    root.tileDragItem = item
+    var copy = {}
+    if (item && typeof item === "object") {
+      for (var k in item) copy[k] = item[k]
+    } else {
+      copy.id = String(item)
+      copy.name = String(item)
+    }
+    copy.glyph = glyph || copy.icon || "\udb81\udc31"
+    root.tileDragItem = copy
     root.tileDropTarget = null
     root.collectBarSlots()
   }
@@ -603,35 +650,30 @@ Panel {
   Process {
     id: scanManifestsProc
     running: false
-    command: [
-      "bash", "-c",
-      "for f in ~/.config/omarchy/plugins/*/manifest.json /usr/share/omarchy/shell/plugins/*/manifest.json; do [ -f \"$f\" ] && cat \"$f\" && echo '---JSON_SPLIT---'; done"
-    ]
+    command: [root.helperBin, "list-manifests"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var chunks = String(text || "").split("---JSON_SPLIT---")
+        var list = DrawerModel.parseJsonSafe(text, [])
         var map = {}
-        var list = []
-        for (var i = 0; i < chunks.length; i++) {
-          var chunk = chunks[i].trim()
-          if (!chunk) continue
-          var manifest = DrawerModel.parseJsonSafe(chunk, null)
+        var fullList = []
+        for (var i = 0; i < list.length; i++) {
+          var manifest = list[i]
           if (manifest && manifest.id && manifest.id !== "evcode.drawer") {
             var meta = DrawerModel.resolveItemMetadata(manifest.id, manifest)
             map[manifest.id] = meta
-            list.push(meta)
+            fullList.push(meta)
           }
         }
         for (var k in DrawerModel.KNOWN_PLUGINS_MAP) {
           if (!map[k]) {
             var kMeta = DrawerModel.KNOWN_PLUGINS_MAP[k]
             map[k] = kMeta
-            list.push(kMeta)
+            fullList.push(kMeta)
           }
         }
         root.discoveredMap = map
-        root.discoveredPlugins = list
+        root.discoveredPlugins = fullList
         root.activeDrawerItems = DrawerModel.getActiveItemList(root.rawDrawerItemIds, root.discoveredMap)
       }
     }
@@ -1110,7 +1152,7 @@ Panel {
                     var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
                     if (!dragging && dist >= Style.space(8)) {
                       dragging = true
-                      root.beginTileDrag(index, "compact", modelData)
+                      root.beginTileDrag(index, "compact", modelData, root.extractItemGlyph(itemDelegate, modelData))
                     }
                     if (dragging) {
                       var scenePoint = mapToItem(null, mouse.x, mouse.y)
@@ -1329,7 +1371,7 @@ Panel {
                     var dist = Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY)
                     if (!dragging && dist >= Style.space(6)) {
                       dragging = true
-                      root.beginTileDrag(index, "wide", modelData)
+                      root.beginTileDrag(index, "wide", modelData, root.extractItemGlyph(wideItemDelegate, modelData))
                     }
                     if (dragging) {
                       var scenePoint = mapToItem(null, mouse.x, mouse.y)
