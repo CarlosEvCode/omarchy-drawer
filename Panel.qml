@@ -257,10 +257,155 @@ Panel {
   onBarChanged: {
     hostScanAttempts = 0
     Qt.callLater(resolveHost)
+    slotScan.restart()
   }
 
   Component.onCompleted: {
     Qt.callLater(resolveHost)
+    slotScan.restart()
+  }
+
+  // ── TOP BAR DRAG DETECTION (Drop bar widgets directly onto Drawer icon) ──
+  property var barSlots: []
+  property var barDragSlot: null
+  property bool barDragging: false
+  property string barDragId: ""
+  property bool barDropHover: false
+  property int idleTicks: 0
+  property var watchedSlots: []
+
+  function isModuleSlot(item) {
+    return !!item && ("dragSource" in item) && ("moduleName" in item) && ("region" in item)
+  }
+
+  function ownSlot() {
+    var node = root.parent
+    while (node) {
+      if (root.isModuleSlot(node)) return node
+      node = node.parent
+    }
+    return null
+  }
+
+  function collectBarSlots() {
+    var own = root.ownSlot()
+    if (!own) return
+    var top = own
+    while (top.parent) top = top.parent
+    var found = []
+    var queue = [top]
+    for (var guard = 0; queue.length > 0 && guard < 5000; guard++) {
+      var node = queue.shift()
+      if (!node) continue
+      if (root.isModuleSlot(node)) {
+        found.push(node)
+        continue
+      }
+      var kids = node.children
+      if (kids) for (var i = 0; i < kids.length; i++) queue.push(kids[i])
+    }
+    root.barSlots = found
+    for (var j = 0; j < found.length; j++) root.watchSlot(found[j])
+  }
+
+  function watchSlot(slot) {
+    if (!slot || root.watchedSlots.indexOf(slot) !== -1) return
+    root.watchedSlots = root.watchedSlots.filter(function(item) { return !!item && !!item.parent }).concat([slot])
+    slot.dragSourceChanged.connect(function() {
+      try {
+        if (slot.dragSource === true) {
+          if (slot !== root.ownSlot()) root.startBarDrag(slot)
+        } else if (root.barDragging && root.barDragSlot === slot) {
+          root.barDropHover = root.barDragId !== "" && root.pointerOverIcon(slot)
+          root.finishBarDrag()
+        }
+      } catch (e) {
+      }
+    })
+  }
+
+  function slotPointer(slot) {
+    var kids = slot ? slot.children : null
+    if (!kids) return null
+    for (var i = 0; i < kids.length; i++)
+      if (kids[i] && ("dragging" in kids[i]) && ("pressedX" in kids[i])) return kids[i]
+    return null
+  }
+
+  function pointerOverIcon(slot) {
+    var pointer = root.slotPointer(slot)
+    if (!pointer) return false
+    var p = pointer.mapToItem(button, pointer.mouseX, pointer.mouseY)
+    return p.x >= 0 && p.x <= button.width && p.y >= -button.height / 2 && p.y <= button.height * 1.5
+  }
+
+  function startBarDrag(slot) {
+    root.barDragging = true
+    root.barDragSlot = slot
+    root.barDragId = slot.customType ? "" : String(slot.moduleName || "")
+  }
+
+  function finishBarDrag() {
+    var id = root.barDragId
+    var dropped = root.barDropHover
+    root.barDragging = false
+    root.barDragSlot = null
+    root.barDragId = ""
+    root.barDropHover = false
+    if (dropped && id && id !== root.moduleName && root.rawDrawerItemIds.indexOf(id) === -1) {
+      root.hideFromBarAndReturn(id)
+    }
+  }
+
+  function pollBarDrag() {
+    var own = root.ownSlot()
+    var active = null
+    var stale = false
+    for (var i = 0; i < root.barSlots.length; i++) {
+      var slot = root.barSlots[i]
+      try {
+        if (!slot || !slot.parent) stale = true
+        else if (slot !== own && slot.dragSource === true) active = slot
+      } catch (e) {
+        stale = true
+      }
+    }
+
+    if (active) {
+      if (!root.barDragging || root.barDragSlot !== active) root.startBarDrag(active)
+      root.barDropHover = root.barDragId !== "" && root.pointerOverIcon(active)
+      return
+    }
+
+    if (!root.barDragging) {
+      root.idleTicks++
+      if (stale || root.idleTicks >= 12) {
+        root.idleTicks = 0
+        root.collectBarSlots()
+      }
+      return
+    }
+    root.finishBarDrag()
+  }
+
+  Timer {
+    id: dragWatch
+    interval: root.barDragging ? 30 : 150
+    running: true
+    repeat: true
+    onTriggered: root.pollBarDrag()
+  }
+
+  Timer {
+    id: slotScan
+    interval: 800
+    onTriggered: root.collectBarSlots()
+  }
+
+  Connections {
+    target: root.bar
+    ignoreUnknownSignals: true
+    function onLayoutConfigChanged() { slotScan.restart() }
   }
 
   Connections {
@@ -375,9 +520,11 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.barDropActive ? "\uf0120" : "\uf187"
-    active: root.opened || root.barDropActive
-    tooltipText: root.opened ? "Close Drawer" : (root.barDropActive ? "Drop here to open" : "Drawer (" + root.activeDrawerItems.length + " items)")
+    text: (root.barDropHover || root.barDropActive) ? "\uf0120" : "\uf187"
+    active: root.opened || root.barDropActive || root.barDropHover
+    tooltipText: (root.barDropHover || root.barDropActive)
+      ? "Drop to move into Drawer"
+      : (root.opened ? "Close Drawer" : "Drawer (" + root.activeDrawerItems.length + " items)")
     onPressed: function(buttonCode) {
       root.toggle()
     }
@@ -824,8 +971,14 @@ Panel {
                 }
 
                 onReleased: function(mouse) {
-                  if (hasMoved && root.draggingIndex >= 0 && root.dropTargetIndex >= 0) {
-                    root.reorderCompactItem(root.draggingIndex, root.dropTargetIndex)
+                  if (hasMoved && root.draggingIndex >= 0) {
+                    var inShelf = mapToItem(shelf, mouse.x, mouse.y)
+                    var isOutside = inShelf.x < -30 || inShelf.x > shelf.width + 30 || inShelf.y < -30 || inShelf.y > shelf.height + 30
+                    if (isOutside) {
+                      root.restoreToBar(modelData.id)
+                    } else if (root.dropTargetIndex >= 0 && root.dropTargetIndex !== root.draggingIndex) {
+                      root.reorderCompactItem(root.draggingIndex, root.dropTargetIndex)
+                    }
                   }
                   root.draggingIndex = -1
                   root.dropTargetIndex = -1
@@ -1044,8 +1197,14 @@ Panel {
                 }
 
                 onReleased: function(mouse) {
-                  if (hasMoved && root.draggingWideIndex >= 0 && root.dropTargetWideIndex >= 0) {
-                    root.reorderWideItem(root.draggingWideIndex, root.dropTargetWideIndex)
+                  if (hasMoved && root.draggingWideIndex >= 0) {
+                    var inShelf = mapToItem(shelf, mouse.x, mouse.y)
+                    var isOutside = inShelf.x < -30 || inShelf.x > shelf.width + 30 || inShelf.y < -30 || inShelf.y > shelf.height + 30
+                    if (isOutside) {
+                      root.restoreToBar(modelData.id)
+                    } else if (root.dropTargetWideIndex >= 0 && root.dropTargetWideIndex !== root.draggingWideIndex) {
+                      root.reorderWideItem(root.draggingWideIndex, root.dropTargetWideIndex)
+                    }
                   }
                   root.draggingWideIndex = -1
                   root.dropTargetWideIndex = -1

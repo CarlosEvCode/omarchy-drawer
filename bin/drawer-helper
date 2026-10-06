@@ -88,27 +88,42 @@ def hide_from_bar(plugin_id):
     save_json(DRAWER_CONFIG, drawer_data)
     print(f"Moved {plugin_id} from Bar to Drawer")
 
-def restore_to_bar(plugin_id):
+def restore_to_bar(plugin_id, anchor_id=None, side="before"):
     if not plugin_id:
         sys.exit(1)
-    # 1. Update shell.json: add back to bar.layout.right before evcode.drawer and remove from plugins list
+    # 1. Update shell.json: add back to bar.layout
     shell_data = load_json(SHELL_CONFIG, {})
     bar = shell_data.setdefault("bar", {})
     layout = bar.setdefault("layout", {})
-    right_list = layout.setdefault("right", [])
+    
     already_on_bar = any(isinstance(e, dict) and e.get("id") == plugin_id for s in ["left", "center", "right"] for e in layout.get(s, []))
     if not already_on_bar:
-        drawer_idx = -1
-        for i, entry in enumerate(right_list):
-            if isinstance(entry, dict) and entry.get("id") == "evcode.drawer":
-                drawer_idx = i
-                break
-        if drawer_idx != -1:
-            right_list.insert(drawer_idx, {"id": plugin_id})
-        else:
-            right_list.append({"id": plugin_id})
+        placed = False
+        if anchor_id:
+            for s in ["left", "center", "right"]:
+                sec_list = layout.get(s, [])
+                if isinstance(sec_list, list):
+                    for idx, entry in enumerate(sec_list):
+                        if isinstance(entry, dict) and entry.get("id") == anchor_id:
+                            insert_idx = idx + 1 if side == "after" else idx
+                            sec_list.insert(insert_idx, {"id": plugin_id})
+                            placed = True
+                            break
+                if placed:
+                    break
+        if not placed:
+            right_list = layout.setdefault("right", [])
+            drawer_idx = -1
+            for i, entry in enumerate(right_list):
+                if isinstance(entry, dict) and entry.get("id") == "evcode.drawer":
+                    drawer_idx = i
+                    break
+            if drawer_idx != -1:
+                right_list.insert(drawer_idx, {"id": plugin_id})
+            else:
+                right_list.append({"id": plugin_id})
 
-    # Remove from plugins list
+    # Remove from plugins list if present
     if "plugins" in shell_data and isinstance(shell_data["plugins"], list):
         shell_data["plugins"] = [p for p in shell_data["plugins"] if not (isinstance(p, dict) and p.get("id") == plugin_id)]
 
@@ -155,7 +170,9 @@ def main():
     elif cmd == "hide-from-bar" and len(sys.argv) >= 3:
         hide_from_bar(sys.argv[2])
     elif cmd == "restore-to-bar" and len(sys.argv) >= 3:
-        restore_to_bar(sys.argv[2])
+        anchor = sys.argv[3] if len(sys.argv) >= 4 else None
+        side = sys.argv[4] if len(sys.argv) >= 5 else "before"
+        restore_to_bar(sys.argv[2], anchor, side)
     elif cmd == "reorder-items" and len(sys.argv) >= 3:
         reorder_items(sys.argv[2])
     elif cmd == "set-header-collapsed" and len(sys.argv) >= 3:
