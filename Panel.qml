@@ -37,6 +37,16 @@ Panel {
   property int draggingWideIndex: -1
   property int dropTargetWideIndex: -1
 
+  function resetDragState() {
+    draggingIndex = -1
+    dropTargetIndex = -1
+    draggingWideIndex = -1
+    dropTargetWideIndex = -1
+    hoveredPluginName = ""
+  }
+
+  onEditingModeChanged: resetDragState()
+
   // Spring-Loaded Timer (OmaSafe pattern)
   Timer {
     id: springTimer
@@ -347,13 +357,11 @@ Panel {
   }
 
   onOpenedChanged: {
+    root.resetDragState()
+    root.editingMode = false
+    root.addingMode = false
     if (opened) {
       root.reloadAllData()
-      root.addingMode = false
-      root.editingMode = false
-      root.hoveredPluginName = ""
-      root.draggingIndex = -1
-      root.dropTargetIndex = -1
     } else {
       root.barDropActive = false
       root.cardDropActive = false
@@ -617,8 +625,8 @@ Panel {
               }
               readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
-              readonly property bool isDragging: root.draggingIndex === index
-              readonly property bool isDropTarget: root.dropTargetIndex === index && root.draggingIndex !== index
+              readonly property bool isDragging: root.editingMode && root.draggingIndex === index
+              readonly property bool isDropTarget: root.editingMode && root.dropTargetIndex === index && root.draggingIndex !== index
 
               readonly property Item activeItem: nativeWidgetLoader.item
 
@@ -632,10 +640,12 @@ Panel {
               BorderSurface {
                 anchors.fill: parent
                 radius: Style.cornerRadius
-                color: isDragging ? Qt.alpha(Color.accent, 0.25) : (tileHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
+                color: isDragging
+                  ? Qt.alpha(Color.accent, 0.25)
+                  : ((tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible || root.editingMode)) ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
                 borderSpec: root.editingMode
-                  ? Border.controlSpec("urgent", Color.urgent, Color.urgent)
-                  : (isDropTarget || tileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                  ? (isDragging || isDropTarget ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.controlSpec("urgent", Color.urgent, Color.urgent))
+                  : ((tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible)) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
                 scale: isDragging ? 1.15 : (isDropTarget ? 1.08 : 1.0)
                 opacity: isDragging ? 0.85 : 1.0
@@ -856,8 +866,8 @@ Panel {
               }
               readonly property bool firstParty: !!registryEntry && !!registryEntry.metadata && registryEntry.metadata.firstParty === true
 
-              readonly property bool isDragging: root.draggingWideIndex === index
-              readonly property bool isDropTarget: root.dropTargetWideIndex === index && root.draggingWideIndex !== index
+              readonly property bool isDragging: root.editingMode && root.draggingWideIndex === index
+              readonly property bool isDropTarget: root.editingMode && root.dropTargetWideIndex === index && root.draggingWideIndex !== index
 
               readonly property Item activeItem: nativeWideWidgetLoader.item
               readonly property bool itemReady: !root.editingMode && nativeWideWidgetLoader.status === Loader.Ready && !!nativeWideWidgetLoader.item && nativeWideWidgetLoader.item.visible
@@ -875,10 +885,12 @@ Panel {
               BorderSurface {
                 anchors.fill: parent
                 radius: Style.cornerRadius
-                color: isDragging ? Qt.alpha(Color.accent, 0.25) : (wideTileHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
+                color: isDragging
+                  ? Qt.alpha(Color.accent, 0.25)
+                  : ((wideTileHover.hovered && (!itemReady || root.editingMode)) ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
                 borderSpec: root.editingMode
                   ? (isDragging || isDropTarget ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.controlSpec("urgent", Color.urgent, Color.urgent))
-                  : (isDropTarget || wideTileHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                  : ((!itemReady && wideTileHover.hovered) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
 
                 scale: isDragging ? 1.04 : (isDropTarget ? 1.02 : 1.0)
                 opacity: isDragging ? 0.88 : 1.0
@@ -976,7 +988,7 @@ Panel {
 
               HoverHandler {
                 id: wideTileHover
-                enabled: !root.editingMode
+                enabled: root.editingMode || !itemReady
               }
 
               MouseArea {
