@@ -363,7 +363,12 @@ Panel {
     anchorItem: button
     open: root.opened
     suspendDismiss: root.childPopoutOpen
-    contentWidth: root.addingMode ? Style.space(340) : (root.headerCollapsed ? Math.max(Style.space(160), (Math.min(5, Math.max(1, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)) : Math.max(Style.space(260), (Math.min(5, Math.max(3, root.activeDrawerItems.length)) * Style.space(56)) + Style.space(32)))
+    readonly property real calcGridWidth: {
+      var count = root.activeDrawerItems.length
+      var cols = Math.min(5, Math.max(1, count))
+      return (cols * Style.space(48)) + ((cols - 1) * Style.space(10))
+    }
+    contentWidth: root.addingMode ? Style.space(340) : (root.headerCollapsed ? Math.max(Style.space(120), calcGridWidth) : Math.max(Style.space(250), calcGridWidth))
     contentHeight: mainColumn.implicitHeight
     onDismissed: {
       if (!root.childPopoutOpen) root.close()
@@ -548,7 +553,10 @@ Panel {
         Flow {
           id: itemsGrid
           visible: root.activeDrawerItems.length > 0
-          Layout.fillWidth: true
+          readonly property int cols: Math.min(5, Math.max(1, root.activeDrawerItems.length))
+          readonly property real gridWidth: (cols * Style.space(48)) + ((cols - 1) * spacing)
+          Layout.preferredWidth: gridWidth
+          Layout.alignment: Qt.AlignHCenter
           spacing: Style.space(10)
           clip: false
 
