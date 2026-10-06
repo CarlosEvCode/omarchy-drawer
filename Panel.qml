@@ -194,9 +194,9 @@ Panel {
 
   function hideFromBarAndReturn(pluginId) {
     if (!pluginId) return
-    barActionProc.command = [root.helperBin, "hide-from-bar", pluginId]
-    barActionProc.running = true
+    Quickshell.execDetached(["sh", "-c", "sleep 0.35; exec \"$0\" hide-from-bar \"$1\"", root.helperBin, pluginId])
     root.addingMode = false
+    dropWatchdogTimer.restart()
   }
 
   function restoreToBar(pluginId) {
@@ -555,6 +555,7 @@ Panel {
     anchorItem: button
     open: root.opened
     suspendDismiss: root.childPopoutOpen
+    padding: Style.spacing.sm
     readonly property real calcGridWidth: {
       var count = root.compactDrawerItems.length
       var cols = Math.min(5, Math.max(1, count))

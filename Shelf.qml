@@ -75,16 +75,25 @@ PanelWindow {
     : WlrKeyboardFocus.None
 
   anchors {
-    top: barPos === "top" || vertical
-    bottom: barPos === "bottom" || vertical
-    left: barPos === "left" || !vertical
-    right: barPos === "right" || !vertical
+    top: true
+    bottom: true
+    left: true
+    right: true
   }
 
-  implicitWidth: vertical ? Math.max(1, barExtent + gap + cardWidth) : 0
-  implicitHeight: vertical ? 0 : Math.max(1, barExtent + gap + cardHeight)
+  mask: Region {
+    width: shelf.screen ? shelf.screen.width : 0
+    height: shelf.screen ? shelf.screen.height : 0
+  }
 
-  mask: Region { item: card }
+  MouseArea {
+    id: dismissArea
+    anchors.fill: parent
+    enabled: shelf.open && !shelf.suspendDismiss
+    onClicked: {
+      if (!shelf.suspendDismiss) shelf.dismissed()
+    }
+  }
 
   function ownsTarget(target) {
     return !!target && Model.isDescendant(target, contentHolder)
