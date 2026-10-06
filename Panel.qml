@@ -1132,6 +1132,7 @@ Panel {
               MouseArea {
                 id: editMouseArea
                 anchors.fill: parent
+                enabled: root.editingMode || nativeWidgetLoader.status !== Loader.Ready || !nativeWidgetLoader.item
                 preventStealing: true
                 cursorShape: dragging ? Qt.ClosedHandCursor : (root.editingMode ? Qt.SizeAllCursor : Qt.PointingHandCursor)
 

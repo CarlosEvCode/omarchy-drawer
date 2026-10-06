@@ -75,30 +75,21 @@ PanelWindow {
     : WlrKeyboardFocus.None
 
   anchors {
-    top: true
-    bottom: true
-    left: true
-    right: true
+    top: barPos === "top" || vertical
+    bottom: barPos === "bottom" || vertical
+    left: barPos === "left" || !vertical
+    right: barPos === "right" || !vertical
   }
 
-  mask: Region {
-    width: shelf.screen ? shelf.screen.width : 0
-    height: shelf.screen ? shelf.screen.height : 0
-  }
+  implicitWidth: vertical ? Math.max(1, barExtent + gap + cardWidth) : 0
+  implicitHeight: vertical ? 0 : Math.max(1, barExtent + gap + cardHeight)
+
+  mask: Region { item: card }
 
   property var tileDropTarget: null
   property int tileDragIndex: -1
   property point tileDragPoint: Qt.point(0, 0)
   property var tileDragItem: null
-
-  MouseArea {
-    id: dismissArea
-    anchors.fill: parent
-    enabled: shelf.open && !shelf.suspendDismiss && shelf.tileDragIndex < 0
-    onClicked: {
-      if (!shelf.suspendDismiss && shelf.tileDragIndex < 0) shelf.dismissed()
-    }
-  }
 
   function ownsTarget(target) {
     return !!target && Model.isDescendant(target, contentHolder)
