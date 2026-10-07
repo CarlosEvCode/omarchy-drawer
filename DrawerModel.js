@@ -103,6 +103,22 @@ var KNOWN_PLUGINS_MAP = {
     entryPoint: "Panel.qml",
     ipcTarget: "lacquer"
   },
+  "io.github.sirallap.solfa": {
+    id: "io.github.sirallap.solfa",
+    name: "Solfa",
+    icon: "\uf001",
+    entryPoint: "BarWidget.qml",
+    ipcTarget: "solfa",
+    isWide: true
+  },
+  "tiertek.ytm": {
+    id: "tiertek.ytm",
+    name: "TekTube",
+    icon: "\uf001",
+    entryPoint: "BarWidget.qml",
+    ipcTarget: "tiertek.ytm",
+    isWide: true
+  },
   "omarchy.audio": {
     id: "omarchy.audio",
     name: "Audio",
@@ -263,17 +279,19 @@ function resolveItemMetadata(pluginId, manifest) {
   if (!isWide && manifest) {
     if (manifest.widgetType === "wide" || manifest.wide === true || manifest.isWide === true) isWide = true;
     if (manifest.barWidget && (manifest.barWidget.wide === true || manifest.barWidget.isWide === true)) isWide = true;
+    if (manifest.barWidget && typeof manifest.barWidget.category === "string" && manifest.barWidget.category.toLowerCase() === "media") isWide = true;
+    if (typeof manifest.category === "string" && manifest.category.toLowerCase() === "media") isWide = true;
     var lowerId = String(manifest.id || "").toLowerCase();
-    if (lowerId.indexOf("clock") !== -1 || lowerId.indexOf("media") !== -1 || lowerId.indexOf("workspace") !== -1 || lowerId.indexOf("active-window") !== -1) {
+    if (lowerId.indexOf("clock") !== -1 || lowerId.indexOf("media") !== -1 || lowerId.indexOf("workspace") !== -1 || lowerId.indexOf("active-window") !== -1 || lowerId.indexOf("solfa") !== -1 || lowerId.indexOf("ytm") !== -1 || lowerId.indexOf("tektube") !== -1) {
       isWide = true;
     }
   }
   if (!isWide && known.isWide === true) isWide = true;
   if (!isWide) {
-    var wideList = ["ajkulundu.mediaplusplus", "omarchy.media", "omarchy.active-window", "omarchy.workspaces", "omarchy.clock"];
+    var wideList = ["ajkulundu.mediaplusplus", "omarchy.media", "omarchy.active-window", "omarchy.workspaces", "omarchy.clock", "io.github.sirallap.solfa", "tiertek.ytm"];
     if (wideList.indexOf(pluginId) !== -1) isWide = true;
     var lowerPluginId = String(pluginId || "").toLowerCase();
-    if (lowerPluginId.indexOf("clock") !== -1 || lowerPluginId.indexOf("media") !== -1 || lowerPluginId.indexOf("workspace") !== -1 || lowerPluginId.indexOf("active-window") !== -1) {
+    if (lowerPluginId.indexOf("clock") !== -1 || lowerPluginId.indexOf("media") !== -1 || lowerPluginId.indexOf("workspace") !== -1 || lowerPluginId.indexOf("active-window") !== -1 || lowerPluginId.indexOf("solfa") !== -1 || lowerPluginId.indexOf("ytm") !== -1 || lowerPluginId.indexOf("tektube") !== -1) {
       isWide = true;
     }
   }

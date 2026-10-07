@@ -198,13 +198,58 @@ Panel {
 
   function hideFromBarAndReturn(pluginId) {
     if (!pluginId) return
-    Quickshell.execDetached(["sh", "-c", "sleep 0.35; exec \"$0\" hide-from-bar \"$1\"", root.helperBin, pluginId])
+    if (root.host && root.host.shell && typeof root.host.shell.mutateShellConfig === "function") {
+      root.host.shell.mutateShellConfig(function(draft) {
+        if (draft && draft.bar && draft.bar.layout) {
+          for (var s in draft.bar.layout) {
+            if (Array.isArray(draft.bar.layout[s])) {
+              draft.bar.layout[s] = draft.bar.layout[s].filter(function(e) {
+                return !(e && e.id === pluginId)
+              })
+            }
+          }
+        }
+        if (draft && Array.isArray(draft.plugins)) {
+          var exists = draft.plugins.some(function(p) { return p && p.id === pluginId })
+          if (!exists) draft.plugins.push({ id: pluginId })
+        }
+      })
+    }
+    barActionProc.command = [root.helperBin, "hide-from-bar", pluginId]
+    barActionProc.running = true
     root.addingMode = false
     dropWatchdogTimer.restart()
   }
 
   function restoreToBar(pluginId) {
     if (!pluginId) return
+    if (root.host && root.host.shell && typeof root.host.shell.mutateShellConfig === "function") {
+      root.host.shell.mutateShellConfig(function(draft) {
+        if (draft && draft.bar && draft.bar.layout) {
+          for (var s in draft.bar.layout) {
+            if (Array.isArray(draft.bar.layout[s])) {
+              draft.bar.layout[s] = draft.bar.layout[s].filter(function(e) {
+                return !(e && e.id === pluginId)
+              })
+            }
+          }
+          if (Array.isArray(draft.bar.layout.right)) {
+            var drawerIdx = -1
+            for (var i = 0; i < draft.bar.layout.right.length; i++) {
+              if (draft.bar.layout.right[i] && draft.bar.layout.right[i].id === "evcode.drawer") {
+                drawerIdx = i
+                break
+              }
+            }
+            if (drawerIdx !== -1) {
+              draft.bar.layout.right.splice(drawerIdx, 0, { id: pluginId })
+            } else {
+              draft.bar.layout.right.push({ id: pluginId })
+            }
+          }
+        }
+      })
+    }
     barActionProc.command = [root.helperBin, "restore-to-bar", pluginId]
     barActionProc.running = true
   }
@@ -357,8 +402,10 @@ Panel {
     root.barDragSlot = null
     root.barDragId = ""
     root.barDropHover = false
-    if (dropped && id && id !== root.moduleName && root.rawDrawerItemIds.indexOf(id) === -1) {
-      root.hideFromBarAndReturn(id)
+    if (dropped && id && id !== root.moduleName) {
+      Qt.callLater(function() {
+        root.hideFromBarAndReturn(id)
+      })
     }
   }
 
@@ -795,6 +842,7 @@ Panel {
 
               width: Style.space(48)
               height: Style.space(48)
+              clip: true
               z: isDragging ? 1000 : (tileHover.hovered ? 100 : 1)
 
               Component.onCompleted: root.registerChild(itemDelegate)
@@ -802,6 +850,7 @@ Panel {
 
               BorderSurface {
                 anchors.fill: parent
+                clip: true
                 radius: Style.cornerRadius
                 color: isDragging
                   ? Qt.alpha(Color.accent, 0.25)
