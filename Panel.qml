@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 import "DrawerModel.js" as DrawerModel
 
 Panel {
@@ -662,8 +663,8 @@ Panel {
           implicitWidth: Style.space(32)
           implicitHeight: Style.space(16)
           radius: Style.cornerRadius > 0 ? Math.min(Style.cornerRadius, 4) : 4
-          color: miniExpandHover.hovered ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent"
-          borderSpec: miniExpandHover.hovered ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none
+          color: miniExpandHover.hovered ? Style.hoverFillFor(Commons.Color.foreground, Commons.Color.accent) : "transparent"
+          borderSpec: miniExpandHover.hovered ? Border.controlSpec("hover", Commons.Color.accent, Commons.Color.accent) : Border.none
           opacity: miniExpandHover.hovered ? 1.0 : 0.45
 
           Behavior on opacity { NumberAnimation { duration: 120 } }
@@ -680,7 +681,7 @@ Panel {
           Text {
             anchors.centerIn: parent
             text: "\uf078"
-            color: miniExpandHover.hovered ? Color.accent : Color.foreground
+            color: miniExpandHover.hovered ? Commons.Color.accent : Commons.Color.foreground
             font.family: Style.font.family
             font.pixelSize: Math.round(Style.font.caption * 0.85)
           }
@@ -706,14 +707,14 @@ Panel {
         Text {
           visible: !root.addingMode
           text: root.cardDropActive ? "\uf0120" : "\uf187"
-          color: Color.accent
+          color: Commons.Color.accent
           font.family: Style.font.family
           font.pixelSize: Style.font.title
         }
 
         Text {
           text: root.cardDropActive ? "Drop here" : (root.addingMode ? "Add to Drawer" : (root.editingMode ? "Edit" : (root.hoveredPluginName !== "" ? root.hoveredPluginName : "Drawer")))
-          color: Color.foreground
+          color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.title
           font.bold: true
@@ -788,7 +789,7 @@ Panel {
 
             Text {
               text: "Empty Drawer"
-              color: Color.foreground
+              color: Commons.Color.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.body
               font.bold: true
@@ -853,11 +854,11 @@ Panel {
                 clip: true
                 radius: Style.cornerRadius
                 color: isDragging
-                  ? Qt.alpha(Color.accent, 0.25)
-                  : ((tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible || root.editingMode)) ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
+                  ? Qt.alpha(Commons.Color.accent, 0.25)
+                  : ((tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible || root.editingMode)) ? Style.hoverFillFor(Commons.Color.foreground, Commons.Color.accent) : "transparent")
                 borderSpec: root.editingMode
-                  ? (isDragging || isDropTarget ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.controlSpec("urgent", Color.urgent, Color.urgent))
-                  : ((isDragging || isDropTarget || (tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible))) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                  ? (isDragging || isDropTarget ? Border.controlSpec("hover", Commons.Color.accent, Commons.Color.accent) : Border.controlSpec("urgent", Commons.Color.urgent, Commons.Color.urgent))
+                  : ((isDragging || isDropTarget || (tileHover.hovered && (!nativeWidgetLoader.item || !nativeWidgetLoader.item.visible))) ? Border.controlSpec("hover", Commons.Color.accent, Commons.Color.accent) : Border.none)
 
                 scale: isDragging ? 1.15 : (isDropTarget ? 1.08 : 1.0)
                 opacity: isDragging ? 0.35 : 1.0
@@ -905,7 +906,7 @@ Panel {
                   visible: root.editingMode || nativeWidgetLoader.status !== Loader.Ready || !nativeWidgetLoader.item
                   anchors.centerIn: parent
                   text: modelData.icon || "\uf013"
-                  color: (isDragging || tileHover.hovered || isDropTarget) ? Color.accent : Color.foreground
+                  color: (isDragging || tileHover.hovered || isDropTarget) ? Commons.Color.accent : Commons.Color.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.iconLarge
                   scale: (tileHover.hovered || isDragging) ? 1.15 : 1.0
@@ -929,7 +930,7 @@ Panel {
                 width: Style.space(18)
                 height: Style.space(18)
                 radius: 9
-                color: Color.urgent || "#ff4455"
+                color: Commons.Color.urgent || "#ff4455"
                 z: 300
 
                 Text {
@@ -953,8 +954,8 @@ Panel {
                 implicitHeight: Style.space(24)
                 implicitWidth: pillLabel.implicitWidth + Style.space(16)
                 radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
-                color: Color.background
-                borderSpec: Border.controlSpec("hover", Color.accent, Color.accent)
+                color: Commons.Color.background
+                borderSpec: Border.controlSpec("hover", Commons.Color.accent, Commons.Color.accent)
 
                 Behavior on opacity {
                   NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -964,7 +965,7 @@ Panel {
                   id: pillLabel
                   anchors.centerIn: parent
                   text: modelData.name || modelData.id
-                  color: Color.foreground
+                  color: Commons.Color.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.caption
                   font.bold: true
@@ -1105,11 +1106,11 @@ Panel {
                 anchors.fill: parent
                 radius: Style.cornerRadius
                 color: isDragging
-                  ? Qt.alpha(Color.accent, 0.25)
-                  : ((wideTileHover.hovered && (!itemReady || root.editingMode)) ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent")
+                  ? Qt.alpha(Commons.Color.accent, 0.25)
+                  : ((wideTileHover.hovered && (!itemReady || root.editingMode)) ? Style.hoverFillFor(Commons.Color.foreground, Commons.Color.accent) : "transparent")
                 borderSpec: root.editingMode
-                  ? (isDragging || isDropTarget ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.controlSpec("urgent", Color.urgent, Color.urgent))
-                  : ((isDragging || isDropTarget || (!itemReady && wideTileHover.hovered)) ? Border.controlSpec("hover", Color.accent, Color.accent) : Border.none)
+                  ? (isDragging || isDropTarget ? Border.controlSpec("hover", Commons.Color.accent, Commons.Color.accent) : Border.controlSpec("urgent", Commons.Color.urgent, Commons.Color.urgent))
+                  : ((isDragging || isDropTarget || (!itemReady && wideTileHover.hovered)) ? Border.controlSpec("hover", Commons.Color.accent, Commons.Color.accent) : Border.none)
 
                 scale: isDragging ? 1.04 : (isDropTarget ? 1.02 : 1.0)
                 opacity: isDragging ? 0.35 : 1.0
@@ -1172,21 +1173,21 @@ Panel {
                   Text {
                     visible: root.editingMode
                     text: "\uf0c9"
-                    color: (isDragging || isDropTarget) ? Color.accent : Color.muted
+                    color: (isDragging || isDropTarget) ? Commons.Color.accent : Commons.Color.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                   }
 
                   Text {
                     text: modelData.icon || "\uf001"
-                    color: Color.accent
+                    color: Commons.Color.accent
                     font.family: Style.font.family
                     font.pixelSize: Style.font.icon
                   }
 
                   Text {
                     text: modelData.name || modelData.id
-                    color: Color.foreground
+                    color: Commons.Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     font.bold: true
@@ -1197,7 +1198,7 @@ Panel {
                   Text {
                     visible: root.editingMode
                     text: "\uf00d"
-                    color: Color.urgent || "#ff4455"
+                    color: Commons.Color.urgent || "#ff4455"
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     font.bold: true
@@ -1291,7 +1292,7 @@ Panel {
 
         Text {
           text: "Select a plugin to move into Drawer:"
-          color: Color.muted
+          color: Commons.Color.muted
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           wrapMode: Text.WordWrap
@@ -1321,10 +1322,10 @@ Panel {
                 Layout.fillWidth: true
                 implicitHeight: Style.space(40)
                 radius: Style.cornerRadius
-                color: rowHover.containsMouse ? Style.hoverFillFor(Color.foreground, Color.accent) : "transparent"
+                color: rowHover.containsMouse ? Style.hoverFillFor(Commons.Color.foreground, Commons.Color.accent) : "transparent"
 
                 borderSpec: rowHover.containsMouse
-                  ? Border.controlSpec("hover", Color.accent, Color.accent)
+                  ? Border.controlSpec("hover", Commons.Color.accent, Commons.Color.accent)
                   : Border.none
 
                 MouseArea {
@@ -1343,7 +1344,7 @@ Panel {
 
                   Text {
                     text: meta.icon || "\uf013"
-                    color: rowHover.containsMouse ? Color.accent : Color.foreground
+                    color: rowHover.containsMouse ? Commons.Color.accent : Commons.Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.icon
                     Layout.preferredWidth: Style.space(24)
@@ -1351,7 +1352,7 @@ Panel {
 
                   Text {
                     text: meta.name || modelData.id
-                    color: Color.foreground
+                    color: Commons.Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     font.bold: true
@@ -1361,7 +1362,7 @@ Panel {
 
                   Text {
                     text: "\uf067"
-                    color: rowHover.containsMouse ? Color.accent : Color.muted
+                    color: rowHover.containsMouse ? Commons.Color.accent : Commons.Color.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                   }

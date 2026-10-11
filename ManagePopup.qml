@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "DrawerModel.js" as DrawerModel
 
@@ -130,14 +131,14 @@ PopupCard {
 
       Text {
         text: "❖"
-        color: Color.accent
+        color: Commons.Color.accent
         font.family: Style.font.family
         font.pixelSize: Style.font.title
       }
 
       Text {
         text: "Omarchy Drawer"
-        color: Color.foreground
+        color: Commons.Color.foreground
         font.family: Style.font.family
         font.pixelSize: Style.font.title
         font.bold: true
@@ -193,7 +194,7 @@ PopupCard {
 
       Text {
         text: "Select any widget on your top bar to hide it and show it inside the Drawer:"
-        color: Color.muted
+        color: Commons.Color.muted
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
@@ -234,7 +235,7 @@ PopupCard {
 
                 Text {
                   text: meta.icon || "\uf013"
-                  color: inDrawer ? Color.accent : Color.foreground
+                  color: inDrawer ? Commons.Color.accent : Commons.Color.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.body
                   Layout.preferredWidth: Style.space(24)
@@ -246,7 +247,7 @@ PopupCard {
 
                   Text {
                     text: meta.name || modelData.id
-                    color: Color.foreground
+                    color: Commons.Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     font.bold: true
@@ -255,7 +256,7 @@ PopupCard {
 
                   Text {
                     text: "Section: " + (modelData.section || "bar") + (meta.description ? " — " + meta.description : "")
-                    color: Color.muted
+                    color: Commons.Color.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight
@@ -284,7 +285,7 @@ PopupCard {
 
       Text {
         text: "Plugins currently inside your Drawer. You can reorder them or restore them to the top bar:"
-        color: Color.muted
+        color: Commons.Color.muted
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
@@ -324,7 +325,7 @@ PopupCard {
 
                 Text {
                   text: meta.icon || "\uf013"
-                  color: Color.accent
+                  color: Commons.Color.accent
                   font.family: Style.font.family
                   font.pixelSize: Style.font.body
                   Layout.preferredWidth: Style.space(24)
@@ -336,7 +337,7 @@ PopupCard {
 
                   Text {
                     text: meta.name || modelData
-                    color: Color.foreground
+                    color: Commons.Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     font.bold: true
@@ -345,7 +346,7 @@ PopupCard {
 
                   Text {
                     text: meta.description || modelData
-                    color: Color.muted
+                    color: Commons.Color.muted
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight

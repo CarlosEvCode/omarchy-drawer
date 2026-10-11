@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "DrawerModel.js" as Model
 
@@ -29,7 +30,7 @@ PanelWindow {
   property int gap: Style.gapsOut
   property int margin: Style.gapsOut
   property int padding: Style.spacing.sm
-  property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+  property var borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
 
   readonly property bool containsMouse: cardHover.hovered
   readonly property var barWindow: anchorItem ? anchorItem.QsWindow.window : null
@@ -127,7 +128,7 @@ PanelWindow {
       var centred = shelf.anchorPos.y + (shelf.anchorItem ? shelf.anchorItem.height : 0) / 2 - height / 2
       return Math.round(Model.clamp(centred, shelf.margin, Math.max(shelf.margin, shelf.height - height - shelf.margin)))
     }
-    color: Color.popups.background
+    color: Commons.Color.popups.background
     borderSpec: shelf.borderSpec
     padding: shelf.padding
     radius: Style.cornerRadius
@@ -202,8 +203,8 @@ PanelWindow {
       anchors.fill: parent
       implicitWidth: tooltipLabel.implicitWidth + Style.spacing.lg * 2
       implicitHeight: tooltipLabel.implicitHeight + Style.spacing.sm * 2
-      color: Color.tooltip.background
-      border.color: Color.tooltip.border
+      color: Commons.Color.tooltip.background
+      border.color: Commons.Color.tooltip.border
       border.width: 1
       radius: Style.cornerRadius
 
@@ -211,7 +212,7 @@ PanelWindow {
         id: tooltipLabel
         anchors.centerIn: parent
         text: tooltipWindow.text
-        color: Color.tooltip.text
+        color: Commons.Color.tooltip.text
         font.family: shelf.host ? shelf.host.fontFamily : Style.font.family
         font.pixelSize: Style.font.body
         textFormat: Text.PlainText
