@@ -199,23 +199,9 @@ Panel {
 
   function hideFromBarAndReturn(pluginId) {
     if (!pluginId) return
-    if (root.host && root.host.shell && typeof root.host.shell.mutateShellConfig === "function") {
-      root.host.shell.mutateShellConfig(function(draft) {
-        if (draft && draft.bar && draft.bar.layout) {
-          for (var s in draft.bar.layout) {
-            if (Array.isArray(draft.bar.layout[s])) {
-              draft.bar.layout[s] = draft.bar.layout[s].filter(function(e) {
-                return !(e && e.id === pluginId)
-              })
-            }
-          }
-        }
-        if (draft && Array.isArray(draft.plugins)) {
-          var exists = draft.plugins.some(function(p) { return p && p.id === pluginId })
-          if (!exists) draft.plugins.push({ id: pluginId })
-        }
-      })
-    }
+    // Keep drawer-helper as the single writer for shell.json and drawer.json.
+    // Writing shell.json here as well races its read/modify/write and can leave
+    // the widget removed from the bar without its id persisted to drawer.json.
     barActionProc.command = [root.helperBin, "hide-from-bar", pluginId]
     barActionProc.running = true
     root.addingMode = false
@@ -224,33 +210,7 @@ Panel {
 
   function restoreToBar(pluginId) {
     if (!pluginId) return
-    if (root.host && root.host.shell && typeof root.host.shell.mutateShellConfig === "function") {
-      root.host.shell.mutateShellConfig(function(draft) {
-        if (draft && draft.bar && draft.bar.layout) {
-          for (var s in draft.bar.layout) {
-            if (Array.isArray(draft.bar.layout[s])) {
-              draft.bar.layout[s] = draft.bar.layout[s].filter(function(e) {
-                return !(e && e.id === pluginId)
-              })
-            }
-          }
-          if (Array.isArray(draft.bar.layout.right)) {
-            var drawerIdx = -1
-            for (var i = 0; i < draft.bar.layout.right.length; i++) {
-              if (draft.bar.layout.right[i] && draft.bar.layout.right[i].id === "evcode.drawer") {
-                drawerIdx = i
-                break
-              }
-            }
-            if (drawerIdx !== -1) {
-              draft.bar.layout.right.splice(drawerIdx, 0, { id: pluginId })
-            } else {
-              draft.bar.layout.right.push({ id: pluginId })
-            }
-          }
-        }
-      })
-    }
+    // drawer-helper owns both config files; avoid a competing shell.json write.
     barActionProc.command = [root.helperBin, "restore-to-bar", pluginId]
     barActionProc.running = true
   }
